@@ -446,6 +446,46 @@ def is_col_array(tbl, col):
         plpy.error("Column {0} not found in table {1}".format(col, tbl))
 # -------------------------------------------------------------------------
 
+def is_col_svec(tbl, col):
+    """
+    Return True if the column is of an array datatype
+
+    Args:
+        @param tbl Name of the table to search. This can be schema qualified,
+                    if it is not qualified then the current_schema is used.
+        @param col Name of the column to check datatype of
+    Returns:
+        Boolean
+    Throws:
+        plpy.error if the column is not found in the table
+    """
+    if not tbl:
+        plpy.error("Input error: Invalid table {0}".format(tbl))
+    if not col:
+        plpy.error("Input error: Invalid column name {0}".format(col))
+    #schema_str, table = _get_table_schema_names(tbl)
+    table = tbl.strip()
+    col = _unquote_name(col)
+    
+    #TODO : valid table_schema in schema_str
+    col_type_list = plpy.execute(
+        """
+        SELECT typname FROM pg_type
+        WHERE oid IN (
+            SELECT atttypid
+            FROM pg_attribute
+            WHERE attrelid = '{table_name}'::regclass
+            AND attname = '{col_name}')
+        """.format(table_name=table, col_name=col))
+    #print col_type_list
+    if col_type_list:
+        for col_type_name in col_type_list:
+            if col_type_name["typname"].lower() == "svec":
+                return True
+        return False
+    else:
+        plpy.error("Column {0} not found in table {1}".format(col, tbl))
+# -------------------------------------------------------------------------
 
 def scalar_col_has_no_null(tbl, col):
     """

@@ -244,6 +244,29 @@ For <em>dim=2</em>, a single vector is returned with
 </dd>
 </dl>
 
+- Convert sparse matrix to svec format
+<pre class="syntax">
+matrix_sparse_to_svec( matrix_in, in_args,
+             matrix_out, out_args)
+</pre>
+
+- Convert svec format matrix to sparse matrix
+<pre class="syntax">
+matrix_svec_to_sparse( matrix_in, in_args,
+             matrix_out, out_args)
+</pre>
+
+- Convert dense matrix to svec format
+<pre class="syntax">
+matrix_dense_to_svec( matrix_in, in_args,
+             matrix_out, out_args)
+</pre>
+
+- Convert svec format matrix to dense matrix
+<pre class="syntax">
+matrix_svec_to_dense( matrix_in, in_args,
+             matrix_out, out_args)
+</pre>
 @anchor examples
 @par Examples
 
@@ -481,6 +504,41 @@ INSERT INTO "mat_A_sparse" ("rowNum", col_num, entry) VALUES (9, 2, 3);
 INSERT INTO "mat_A_sparse" ("rowNum", col_num, entry) VALUES (10, 10, 0);
 </pre>
 
+- Create a matrix in dense format
+<pre class="syntax">
+CREATE TABLE "mat_A_dense" (
+    "row_id" integer,
+    vec float[8]
+);
+INSERT INTO "mat_A_dense" VALUES (1,'{9,6,0,0,0,0,3,10,8}');
+INSERT INTO "mat_A_dense" VALUES (2,'{8,2,6,0,0,0,0,0,0}');
+INSERT INTO "mat_A_dense" VALUES (3,'{0,0,0,0,6,3,0,0,0}');
+INSERT INTO "mat_A_dense" VALUES (4,'{0,0,0,0,0,0,0,0,0}');
+INSERT INTO "mat_A_dense" VALUES (5,'{0,0,0,0,0,0,0,0,0}');
+INSERT INTO "mat_A_dense" VALUES (6,'{0,0,0,0,0,0,0,0,0}');
+INSERT INTO "mat_A_dense" VALUES (7,'{7,0,0,0,0,0,0,0,0}');
+INSERT INTO "mat_A_dense" VALUES (8,'{0,8,5,0,0,0,0,0,0}');
+INSERT INTO "mat_A_dense" VALUES (9,'{6,3,0,0,0,0,0,0,0}');
+</pre>
+
+
+- Create a matrix in svec format.
+<pre class="syntax">
+CREATE TABLE "mat_A_svec" (
+    "row_id" integer,
+    svec madlib.svec
+);
+INSERT INTO "mat_A_svec" VALUES (1,'{1,1,4,1,1,1}:{9,6,0,3,10,8}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (2,'{1,1,1,6}:{8,2,6,0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (3,'{4,1,1,3}:{0,6,3,0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (4,'{9}:{0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (5,'{9}:{0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (6,'{9}:{0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (7,'{1,8}:{7,0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (8,'{1,1,1,6}:{0,8,5,0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (9,'{1,1,7}:{6,3,0}'::madlib.svec);
+</pre>
+
 - Transpose a matrix in sparse format
 <pre class="syntax">
 -- Note the double quotes for '"rowNum"' required per PostgreSQL rules
@@ -558,6 +616,91 @@ SELECT * FROM matrix_r ORDER BY "rowNum";
 (10 rows)
 </pre>
 
+- Convert sparse matrix to svec format
+<pre class="syntax">
+SELECT madlib.matrix_sparse_to_svec('"mat_A_sparse"', 'row="rowNum", col=col_num, val=entry',
+                                    'mat_r', 'row=row_id, val=svec');
+SELECT * FROM mat_r ORDER BY row_id;
+<pre class="result">
+ row_id |                   svec
+--------+-------------------------------------------
+      1 | {1,1,4,1,1,1}:{9,6,0,3,10,8}
+      2 | {1,1,1,6}:{8,2,6,0}
+      3 | {4,1,1,3}:{0,6,3,0}
+      4 | {9}:{0} 
+      5 | {9}:{0} 
+      6 | {9}:{0} 
+      7 | {1,8}:{7,0}
+      8 | {1,1,1,6}:{0,8,5,0} 
+      9 | {1,1,7}:{6,3,0}
+(10 rows)
+</pre>
+
+- Convert svec format matrix to sparse matrix
+<pre class="syntax">
+matrix_svec_to_sparse( '"mat_A_svec"', 'row="row_id",val=svec',
+             'mat_r', 'row=row_id, col=col_id,val=val');
+SELECT * FROM mat_r ORDER BY row_id;
+<pre class="result">
+ row_id | col_id  |   val
+--------+---------+-------
+      1 |       2 |     6
+      1 |       1 |     9
+      1 |       8 |    10
+      1 |       9 |     8
+      1 |       7 |     3
+      2 |       2 |     2
+      2 |       1 |     8
+      2 |       3 |     6
+      3 |       5 |     6
+      3 |       6 |     3
+      7 |       1 |     7
+      8 |       2 |     8
+      8 |       3 |     5
+      9 |       2 |     3
+      9 |       1 |     6
+(15 rows)
+</pre>
+
+- Convert dense matrix to svec format
+<pre class="syntax">
+SELECT madlib.matrix_dense_to_svec('"matrix_A_dense"', 'row=row_id, val=vec',
+             'mat_r', 'row=row_id,val=svec');
+SELECT * FROM mat_r ORDER BY row_id;
+<pre class="result">
+ row_id |                   svec
+--------+-------------------------------------------
+      1 | {1,1,4,1,1,1}:{9,6,0,3,10,8}
+      2 | {1,1,1,6}:{8,2,6,0}
+      3 | {4,1,1,3}:{0,6,3,0}
+      4 | {9}:{0} 
+      5 | {9}:{0} 
+      6 | {9}:{0} 
+      7 | {1,8}:{7,0}
+      8 | {1,1,1,6}:{0,8,5,0} 
+      9 | {1,1,7}:{6,3,0}
+(10 rows)
+</pre>
+
+- Convert svec format matrix to dense matrix
+<pre class="syntax">
+SELECT madlib.matrix_svec_to_dense( '"mat_A_svec, 'row=row_id,val=svec',
+             'mat_r', 'row=row_id,val=vec');
+SELECT * FROM mat_r ORDER BY row_id;
+<pre class="result">
+ row_id |         vec
+--------+----------------------
+      1 | {9,6,0,0,0,0,3,10,8}
+      2 | {8,2,6,0,0,0,0,0,0}
+      3 | {0,0,0,0,6,3,0,0,0}
+      4 | {0,0,0,0,0,0,0,0,0}
+      5 | {0,0,0,0,0,0,0,0,0}
+      6 | {0,0,0,0,0,0,0,0,0}
+      7 | {7,0,0,0,0,0,0,0,0}
+      8 | {0,8,5,0,0,0,0,0,0}
+      9 | {6,3,0,0,0,0,0,0,0}
+(9 rows)
+</pre>
 @anchor related
 @par Related Topics
 
@@ -1194,6 +1337,238 @@ $$ LANGUAGE plpgsql IMMUTABLE
 m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL', `');
 -------------------------------------------------------------------------
 
+
+--TODO
+/**
+ * @brief Convert a matrix in (row_id, col_id, val) format(psarse matrix) to a matrix in (row_id, svec) format(svec matrix)
+ * It requires that all the values are NOT-NULL. 
+ * @param matrix_in Name of the table containing the input sparse matrix
+ * @param in_row Name of the column containing the row index for the input matrix
+ * @param in_col Name of the column containing the col index for the input matrix
+ * @param in_val Name of the column containing the value of (row_id, col_id) for the input matrix
+ * @param matrix_out Name of the table where to output the result matrix
+ * @returns Name of the table containing the result svec matrix
+ */
+
+CREATE OR REPLACE FUNCTION
+MADLIB_SCHEMA.matrix_sparse_to_svec
+(
+    matrix_in       TEXT,
+    in_args         TEXT,
+    matrix_out      TEXT,
+    out_args        TEXT
+)
+RETURNS MADLIB_SCHEMA.matrix_result AS $$
+    PythonFunctionBodyOnly(`linalg', `matrix_ops')
+    matrix_ops.matrix_sparse_to_svec(schema_madlib,
+        matrix_in, in_args,
+        matrix_out, out_args)
+    return [matrix_out]
+$$ LANGUAGE plpythonu
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA', `');
+
+CREATE OR REPLACE FUNCTION
+MADLIB_SCHEMA.matrix_sparse_to_svec
+(
+    matrix_in       TEXT,
+    in_args         TEXT,
+    matrix_out      TEXT
+)
+RETURNS MADLIB_SCHEMA.matrix_result AS $$
+    SELECT MADLIB_SCHEMA.matrix_sparse_to_svec($1, $2, $3, ''::TEXT)
+$$ LANGUAGE SQL
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA', `');
+
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.matrix_sparse_to_svec(
+    message     TEXT
+) RETURNS TEXT AS $$
+PythonFunction(linalg, matrix_help_message, matrix_sparse_to_svec_help_message)
+$$ LANGUAGE plpythonu IMMUTABLE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL', `');
+
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.matrix_sparse_to_svec()
+RETURNS TEXT AS $$
+BEGIN
+    RETURN MADLIB_SCHEMA.matrix_sparse_to_svec('');
+END;
+$$ LANGUAGE plpgsql IMMUTABLE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL', `');
+-------------------------------------------------------------------------
+
+--TODO
+/**
+ * @brief Convert a matrix in (row_id, svec) format(svec matrix) to a matrix in (row_id, col_id, value) format(sparse matrix)
+ * It requires that all the values are NOT-NULL. 
+ * @param matrix_in Name of the table containing the input svec matrix
+ * @param in_row Name of the column containing the row index for the input matrix
+ * @param in_svec Name of the column containing the svec format column for the input matrix
+ * @param matrix_out Name of the table where to output the result matrix
+ * @returns Name of the table containing the result sparse matrix
+ */
+
+CREATE OR REPLACE FUNCTION
+MADLIB_SCHEMA.matrix_svec_to_sparse
+(
+    matrix_in       TEXT,
+    in_args         TEXT,
+    matrix_out      TEXT,
+    out_args        TEXT
+)
+RETURNS MADLIB_SCHEMA.matrix_result AS $$
+    PythonFunctionBodyOnly(`linalg', `matrix_ops')
+    matrix_ops.matrix_svec_to_sparse(schema_madlib,
+        matrix_in, in_args,
+        matrix_out, out_args)
+    return [matrix_out]
+$$ LANGUAGE plpythonu
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA', `');
+
+CREATE OR REPLACE FUNCTION
+MADLIB_SCHEMA.matrix_svec_to_sparse
+(
+    matrix_in       TEXT,
+    in_args         TEXT,
+    matrix_out      TEXT
+)
+RETURNS MADLIB_SCHEMA.matrix_result AS $$
+    SELECT MADLIB_SCHEMA.matrix_svec_to_sparse($1, $2, $3, ''::TEXT)
+$$ LANGUAGE SQL
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA', `');
+
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.matrix_svec_to_sparse(
+    message     TEXT
+) RETURNS TEXT AS $$
+PythonFunction(linalg, matrix_help_message, matrix_svec_to_sparse_help_message)
+$$ LANGUAGE plpythonu IMMUTABLE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL', `');
+
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.matrix_svec_to_sparse()
+RETURNS TEXT AS $$
+BEGIN
+    RETURN MADLIB_SCHEMA.matrix_svec_to_sparse('');
+END;
+$$ LANGUAGE plpgsql IMMUTABLE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL', `');
+-------------------------------------------------------------------------
+
+--TODO
+/**
+ * @brief Convert a matrix in (row_id, row_vec) format(dense matrix) to a matrix in (row_id, svec) format(svec matrix)
+ * It requires that all the values are NOT-NULL. 
+ * @param matrix_in Name of the table containing the input dense matrix
+ * @param in_row Name of the column containing the row index for the input matrix
+ * @param in_vec Name of the column containing the array format column for the input matrix
+ * @param matrix_out Name of the table where to output the result matrix
+ * @returns Name of the table containing the result svec matrix
+ */
+
+CREATE OR REPLACE FUNCTION
+MADLIB_SCHEMA.matrix_dense_to_svec
+(
+    matrix_in       TEXT,
+    in_args         TEXT,
+    matrix_out      TEXT,
+    out_args        TEXT
+)
+RETURNS MADLIB_SCHEMA.matrix_result AS $$
+    PythonFunctionBodyOnly(`linalg', `matrix_ops')
+    matrix_ops.matrix_dense_to_svec(schema_madlib,
+        matrix_in, in_args,
+        matrix_out, out_args)
+    return [matrix_out]
+$$ LANGUAGE plpythonu
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA', `');
+
+CREATE OR REPLACE FUNCTION
+MADLIB_SCHEMA.matrix_dense_to_svec
+(
+    matrix_in       TEXT,
+    in_args         TEXT,
+    matrix_out      TEXT
+)
+RETURNS MADLIB_SCHEMA.matrix_result AS $$
+    SELECT MADLIB_SCHEMA.matrix_dense_to_svec($1, $2, $3, ''::TEXT)
+$$ LANGUAGE SQL
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA', `');
+
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.matrix_dense_to_svec(
+    message     TEXT
+) RETURNS TEXT AS $$
+PythonFunction(linalg, matrix_help_message, matrix_dense_to_svec_help_message)
+$$ LANGUAGE plpythonu IMMUTABLE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL', `');
+
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.matrix_dense_to_svec()
+RETURNS TEXT AS $$
+BEGIN
+    RETURN MADLIB_SCHEMA.matrix_dense_to_svec('');
+END;
+$$ LANGUAGE plpgsql IMMUTABLE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL', `');
+-------------------------------------------------------------------------
+--TODO
+/**
+ * @brief Convert a matrix in (row_id, svec) format(svec matrix) to a matrix in (row_id, row_vec) format(dense matrix)
+ * It requires that all the values are NOT-NULL. 
+ * @param matrix_in Name of the table containing the input svec matrix
+ * @param in_row Name of the column containing the row index for the input matrix
+ * @param in_vec Name of the column containing the svec format column for the input matrix
+ * @param matrix_out Name of the table where to output the result matrix
+ * @returns Name of the table containing the result dense matrix
+ */
+
+CREATE OR REPLACE FUNCTION
+MADLIB_SCHEMA.matrix_svec_to_dense
+(
+    matrix_in       TEXT,
+    in_args         TEXT,
+    matrix_out      TEXT,
+    out_args        TEXT
+)
+RETURNS MADLIB_SCHEMA.matrix_result AS $$
+    PythonFunctionBodyOnly(`linalg', `matrix_ops')
+    matrix_ops.matrix_svec_to_dense(schema_madlib,
+        matrix_in, in_args,
+        matrix_out, out_args)
+    return [matrix_out]
+$$ LANGUAGE plpythonu
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA', `');
+
+CREATE OR REPLACE FUNCTION
+MADLIB_SCHEMA.matrix_svec_to_dense
+(
+    matrix_in       TEXT,
+    in_args         TEXT,
+    matrix_out      TEXT
+)
+RETURNS MADLIB_SCHEMA.matrix_result AS $$
+    SELECT MADLIB_SCHEMA.matrix_svec_to_dense($1, $2, $3, ''::TEXT)
+$$ LANGUAGE SQL
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA', `');
+
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.matrix_svec_to_dense(
+    message     TEXT
+) RETURNS TEXT AS $$
+PythonFunction(linalg, matrix_help_message, matrix_svec_to_dense_help_message)
+$$ LANGUAGE plpythonu IMMUTABLE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL', `');
+
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.matrix_svec_to_dense()
+RETURNS TEXT AS $$
+BEGIN
+    RETURN MADLIB_SCHEMA.matrix_svec_to_dense('');
+END;
+$$ LANGUAGE plpgsql IMMUTABLE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL', `');
+-------------------------------------------------------------------------
 
 /**
  * @brief Multiplies two matrices by element. It requires that all the values are NON-NULL.
