@@ -469,8 +469,12 @@ def is_col_svec(schema_madlib, tbl, col):
     #TODO : valid table_schema in schema_str
     col_type_list = plpy.execute(
         """
-        SELECT typname FROM pg_type
-        WHERE oid IN (
+        SELECT typname, nspname
+        FROM pg_type pt
+        INNER JOIN
+        pg_namespace pn
+        ON pt.typnamespace = pn.oid
+        WHERE pt.oid IN (
             SELECT atttypid
             FROM pg_attribute
             WHERE attrelid in (
@@ -482,25 +486,20 @@ def is_col_svec(schema_madlib, tbl, col):
                     FROM pg_namespace
                     WHERE nspname IN {schema_str}
                 )
-            )
+            ) AND attname = '{col_name}'
         )
-        AND typnamespace in (
-            SELECT oid 
-            FROM pg_namespace 
-            WHERE nspname = '{col_schema}'
-        )
-        """.format(schema_str=schema_str, table_name=table, col_name=col, col_schema=schema_madlib))
+        """.format(schema_str=schema_str, table_name=table, col_name=col))
     #print col_type_list
     if col_type_list:
         for col_type_name in col_type_list:
-            if col_type_name["typname"].lower() == "svec":
+            if col_type_name["typname"].lower() == "svec" and
+               col_type_name["nspname"].lower() == schema_madlib:
                 return True
-    return False
-    '''
+        return False
     else:
         plpy.error("Column {0} not found in table {1}".format(col, tbl))
-    '''
 # -------------------------------------------------------------------------
+
 
 def scalar_col_has_no_null(tbl, col):
     """
