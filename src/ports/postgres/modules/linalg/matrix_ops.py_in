@@ -114,7 +114,7 @@ def create_temp_sparse_matrix_table_with_dims(source_table,
                             value=value,
                             source_table=source_table,
                             out_table=out_table))
-    res_row_dim, res_col_dim = get_dims(out_table, {'row': row_id,
+    res_row_dim, res_col_dim = get_dims(schema_madlib, out_table, {'row': row_id,
                                                     'col': col_id,
                                                     'val': value})
     if res_row_dim != row_dim or res_col_dim != col_dim:
@@ -123,8 +123,8 @@ def create_temp_sparse_matrix_table_with_dims(source_table,
         """.format(**locals()))
 
 
-def _is_sparse(matrix_in, val):
-    return not is_col_array(matrix_in, val) and not is_col_svec(matrix_in, val)
+def _is_sparse(schema_madlib, matrix_in, val):
+    return not is_col_array(matrix_in, val) and not is_col_svec(schema_madlib, matrix_in, val)
 
 
 def _matrix_default_args():
@@ -203,8 +203,7 @@ def cast_dense_input_table_to_correct_columns(schema_madlib, matrix_in,
     return createTable
 
 
-def get_dims(matrix, matrix_args, is_block=False):
-
+def get_dims(schema_madlib, matrix, matrix_args, is_block=False):
     if is_block:
         block_dim = plpy.execute("""
             SELECT
@@ -257,7 +256,7 @@ def get_dims(matrix, matrix_args, is_block=False):
             LIMIT 1
             """.format(matrix=matrix, matrix_args=matrix_args))
         col_dim = rv[0]['col_dim']
-    elif is_col_svec(matrix, matrix_args['val']):
+    elif is_col_svec(schema_madlib, matrix, matrix_args['val']):
         cols = [matrix_args[i] for i in ('row', 'val')]
         _assert(columns_exist_in_table(matrix, cols),
                 "Matrix error: At least one of the columns ({1}) missing "
@@ -310,7 +309,7 @@ def _validate_input_table(table):
             "Matrix error: The input table ({0}) doesn't exist".format(table))
 
 
-def validate_sparse(matrix, matrix_args, checkCol=True):
+def validate_sparse(schema_madlib, matrix, matrix_args, checkCol=True):
     _assert(table_exists(matrix),
             "Matrix error: Could not find input table " + matrix)
     _assert(not table_is_empty(matrix),
@@ -321,6 +320,9 @@ def validate_sparse(matrix, matrix_args, checkCol=True):
                 "Matrix error: Missing columns from matrix {0}".format(matrix))
         _assert(not is_col_array(matrix, matrix_args['val']),
                 "Matrix error: invalid column ({0}) should not be an array "
+                "datatype".format(matrix_args['val']))
+        _assert(not is_col_svec(schema_madlib, matrix, matrix_args['val']),
+                "Matrix error: invalid column ({0}) should not be an svec "
                 "datatype".format(matrix_args['val']))
 
     # verify that row and col entries are in the right range
@@ -428,7 +430,7 @@ Error: Above {row} values are invalid in dense matrix ({m}).
                        all_rows="\n".join(bad_rows),
                        M_R=MAX_ROWS))
 
-def _validate_svec(matrix, matrix_args, checkCol=True, row_dim=None):
+def _validate_svec(schema_madlib, matrix, matrix_args, checkCol=True, row_dim=None):
     _assert(table_exists(matrix), "Matrix error: Could not find table {0}".format(matrix))
     if checkCol:
         cols = [matrix_args[i] for i in ('row', 'val')]
@@ -436,7 +438,7 @@ def _validate_svec(matrix, matrix_args, checkCol=True, row_dim=None):
                     matrix, cols),
                 "Matrix error: Missing columns (one of {0}) "
                 "from matrix {1}".format(','.join(cols), matrix))
-        _assert(is_col_svec(matrix, matrix_args['val']),
+        _assert(is_col_svec(schema_madlib, matrix, matrix_args['val']),
                 "Matrix error: invalid column ({0}) should be a madlib.svec "
                 "datatype".format(matrix_args['val']))
 
@@ -548,7 +550,7 @@ def matrix_sparsify(matrix_in, in_args,
         m4_ifdef(`__POSTGRESQL__', `',
             `DISTRIBUTED BY ({out_args[row]})')
         """.format(**locals()))
-    res_row_dim, res_col_dim = get_dims(matrix_out, out_args)
+    res_row_dim, res_col_dim = get_dims(schema_madlib, matrix_out, out_args)
     if res_row_dim != row_dim or res_col_dim != col_dim:
         plpy.execute("""
             INSERT INTO {matrix_out} VALUES ({row_dim}, {col_dim}, 0)
@@ -561,13 +563,13 @@ def matrix_densify(schema_madlib, matrix_in, in_args,
     _validate_input_table(matrix_in)
     _validate_output_table(matrix_out)
     in_args = parse_matrix_args(in_args)
-    validate_sparse(matrix_in, in_args)
+    validate_sparse(schema_madlib, matrix_in, in_args)
     out_args = parse_matrix_args(out_args,
                                  in_default_args={'row': in_args['row'],
                                                   'val': in_args['val']})
     temp = '' if not use_temp_table else 'TEMP'
 
-    (row_dim, col_dim) = get_dims(matrix_in, in_args)
+    (row_dim, col_dim) = get_dims(schema_madlib, matrix_in, in_args)
     _assert(col_dim < sys.maxint,
             "Matrix error: Matrix {0} has too many rows. This cannot be "
             "transposed in a dense format due to "
@@ -638,8 +640,8 @@ def matrix_svec_to_sparse(schema_madlib, matrix_in, in_args,
     # validate and parse params for in matrix
     _validate_input_table(matrix_in)
     in_args = parse_matrix_args(in_args)
-    (row_dim, col_dim) = get_dims(matrix_in, in_args)
-    _validate_svec(matrix_in, in_args, row_dim=row_dim)
+    (row_dim, col_dim) = get_dims(schema_madlib, matrix_in, in_args)
+    _validate_svec(schema_madlib, matrix_in, in_args, row_dim=row_dim)
     # validate and parse params for out matrix
     default_args = {'row' : in_args['row'], 'col' : 'col_id', 'val' : 'val'}
     if 'col' in in_args:
@@ -667,7 +669,7 @@ def matrix_svec_to_sparse(schema_madlib, matrix_in, in_args,
             `DISTRIBUTED BY ({out_args[row]})')
         """.format(**locals()))
     '''
-    res_row_dim, res_col_dim = get_dims(matrix_out, out_args)
+    res_row_dim, res_col_dim = get_dims(schema_madlib, matrix_out, out_args)
     if res_row_dim != row_dim or res_col_dim != col_dim:
         plpy.execute("""
             INSERT INTO {matrix_out} VALUES ({row_dim}, {col_dim}, 0)
@@ -699,8 +701,8 @@ def matrix_sparse_to_svec(schema_madlib, matrix_in, in_args,
     # validate and parse params for in matrix
     _validate_input_table(matrix_in)
     in_args = parse_matrix_args(in_args)
-    _validate_sparse(matrix_in, in_args)
-    (row_dim, col_dim) = get_dims(matrix_in, in_args)
+    _validate_sparse(schema_madlib, matrix_in, in_args)
+    (row_dim, col_dim) = get_dims(schema_madlib, matrix_in, in_args)
     _assert(col_dim < sys.maxint,
             "Matrix error: Matrix {0} has too many rows. This cannot be "
             "transposed in a dense format due to "
@@ -754,7 +756,7 @@ def matrix_dense_to_svec(schema_madlib, matrix_in, in_args,
     # validate and parse params for in matrix
     _validate_input_table(matrix_in)
     in_args = parse_matrix_args(in_args)
-    (row_dim, col_dim) = get_dims(matrix_in, in_args)
+    (row_dim, col_dim) = get_dims(schema_madlib, matrix_in, in_args)
     _validate_dense(matrix_in, in_args, row_dim=row_dim)
     # validate and parse params for out matrix
     _validate_output_table(matrix_out)
@@ -800,8 +802,8 @@ def matrix_svec_to_dense(schema_madlib, matrix_in, in_args,
     # validate and parse params for in matrix
     _validate_input_table(matrix_in)
     in_args = parse_matrix_args(in_args)
-    (row_dim, col_dim) = get_dims(matrix_in, in_args)
-    _validate_svec(matrix_in, in_args, row_dim=row_dim)
+    (row_dim, col_dim) = get_dims(schema_madlib, matrix_in, in_args)
+    _validate_svec(schema_madlib, matrix_in, in_args, row_dim=row_dim)
     # validate and parse params for out matrix
     _validate_output_table(matrix_out)
     out_args = parse_matrix_args(out_args, 
@@ -853,8 +855,8 @@ def matrix_trans(schema_madlib, matrix_in, in_args,
                                                   'col': in_args['col'],
                                                   'val': in_args['val']})
 
-    if _is_sparse(matrix_in, in_args['val']):
-        validate_sparse(matrix_in, in_args)
+    if _is_sparse(schema_madlib, matrix_in, in_args['val']):
+        validate_sparse(schema_madlib, matrix_in, in_args)
         return _matrix_trans_sparse(
             schema_madlib, matrix_in, in_args,
             matrix_out, out_args, use_temp_table)
@@ -890,7 +892,7 @@ def _matrix_trans_sparse(schema_madlib, matrix_in, in_args,
 def _matrix_trans_dense(schema_madlib, matrix_in, in_args,
                         matrix_out, out_args, use_temp_table=False):
     temp = 'TEMP' if use_temp_table else ''
-    (row_dim, col_dim) = get_dims(matrix_in, in_args)
+    (row_dim, col_dim) = get_dims(schema_madlib, matrix_in, in_args)
     _assert(row_dim < sys.maxint,
             "Matrix error: Matrix {0} has too many rows. "
             "This cannot be transposed in a dense format due to "
@@ -963,12 +965,12 @@ def matrix_elem_op(schema_madlib, matrix_a, a_args,
                                                   'col': a_args['col'],
                                                   'val': a_args['val']})
 
-    a_dim = get_dims(matrix_a, a_args)
-    b_dim = get_dims(matrix_b, b_args)
+    a_dim = get_dims(schema_madlib, matrix_a, a_args)
+    b_dim = get_dims(schema_madlib, matrix_b, b_args)
     _assert(a_dim[0] == b_dim[0] and a_dim[1] == b_dim[1],
             "Matrix error: The dimensions of the two matrices don't match")
 
-    if not _is_sparse(matrix_a, a_args['val']) and not _is_sparse(matrix_b, b_args['val']):
+    if not _is_sparse(schema_madlib,atrix_a, a_args['val']) and not _is_sparse(schema_madlib, matrix_b, b_args['val']):
         # both matrix_a and matrix_b are dense
         validate_dense(matrix_a, a_args)
         validate_dense(matrix_b, b_args)
@@ -978,23 +980,25 @@ def matrix_elem_op(schema_madlib, matrix_a, a_args,
     else:
         # sparsify matrix_a if dense
         matrix_out1 = "pg_temp." + unique_string() + "_a1"
-        if not _is_sparse(matrix_a, a_args['val']):
+        if not _is_sparse(schema_madlib, matrix_a, a_args['val']):
             # in the future, matrix_sparsify() may remove the arg `use_temp_table`
             matrix_sparsify(matrix_a, a_args,
                             matrix_out1, _matrix_default_args(), False)
             matrix_a = matrix_out1
             a_args = _matrix_default_args()
-        validate_sparse(matrix_a, a_args, a_dim[0])
+
+        validate_sparse(schema_madlib, matrix_a, a_args, a_dim[0])
 
         # densify matrix_b if sparse
         matrix_out2 = "pg_temp." + unique_string() + "_a2"
-        if not _is_sparse(matrix_b, b_args['val']):
+        if not _is_sparse(schema_madlib, matrix_b, b_args['val']):
             # in the future, matrix_sparsify() may remove the arg `use_temp_table`
             matrix_sparsify(matrix_b, b_args,
                             matrix_out2, _matrix_default_args(), False)
             matrix_b = matrix_out2
             b_args = _matrix_default_args()
-        validate_sparse(matrix_b, b_args, b_dim[0])
+
+        validate_sparse(schema_madlib, matrix_b, b_args, b_dim[0])
 
         _matrix_elem_op_sparse(schema_madlib, matrix_a, a_args,
                                matrix_b, b_args, matrix_out, out_args,
@@ -1033,8 +1037,8 @@ def _matrix_elem_op_sparse(schema_madlib, matrix_a, a_args,
         m4_ifdef(`__POSTGRESQL__', `',
             `DISTRIBUTED BY ({out_args[row]})')
         """.format(**locals()))
-    a_dim = get_dims(matrix_a, a_args)
-    res_row_dim, res_col_dim = get_dims(matrix_out, out_args)
+    a_dim = get_dims(schema_madlib, matrix_a, a_args)
+    res_row_dim, res_col_dim = get_dims(schema_madlib, matrix_out, out_args)
     if res_row_dim != a_dim[0] or res_col_dim != a_dim[1]:
         plpy.execute("""
         INSERT INTO {matrix_out} VALUES ({row_count}, {col_count}, 0)
@@ -1326,7 +1330,7 @@ def matrix_extract(schema_madlib, matrix_in, in_args, extract_dim, index=0):
     """
     _validate_input_table(matrix_in)
     in_args = parse_matrix_args(in_args)
-    in_dim = get_dims(matrix_in, in_args)
+    in_dim = get_dims(schema_madlib, matrix_in, in_args)
 
     _assert(min(in_dim) > 0,
             "Matrix error: Invalid dimensions for input matrix")
@@ -1335,8 +1339,8 @@ def matrix_extract(schema_madlib, matrix_in, in_args, extract_dim, index=0):
             "Matrix error: The index ({0}) is invalid compared to "
             "dimension size ({1})".format(index, in_dim[extract_dim - 1]))
 
-    if _is_sparse(matrix_in, in_args['val']):
-        validate_sparse(matrix_in, in_args)
+    if _is_sparse(schema_madlib, matrix_in, in_args['val']):
+        validate_sparse(schema_madlib, matrix_in, in_args)
         return _matrix_extract_sparse(schema_madlib, matrix_in, in_args,
                                       extract_dim, in_dim, index)
     else:
@@ -1454,16 +1458,17 @@ def matrix_extremum(schema_madlib, matrix_in, in_args, dim, matrix_out, op,
     _validate_input_table(matrix_in)
 
     in_args = parse_matrix_args(in_args)
-    in_dim = get_dims(matrix_in, in_args)
+    in_dim = get_dims(schema_madlib, matrix_in, in_args)
 
     op = op.lower()
     _assert(min(in_dim) > 0, "Matrix error: Invalid dimensions for input matrix")
     _assert(dim == 1 or dim == 2,
             "Matrix error: Invalid dimensionality: {0}. It should be either 1 or 2".format(dim))
 
-    if _is_sparse(matrix_in, in_args['val']):
+    if _is_sparse(schema_madlib, matrix_in, in_args['val']):
         # matrix_in is sparse
-        validate_sparse(matrix_in, in_args)
+
+        validate_sparse(schema_madlib, matrix_in, in_args)
         _matrix_extremum_sparse(schema_madlib, matrix_in, in_args,
                                 matrix_out, fetch_index,
                                 dim, in_dim, op)
@@ -1736,15 +1741,15 @@ def matrix_reduction_op(schema_madlib, matrix_in, in_args, dim, vector_ops):
     _validate_input_table(matrix_in)
 
     in_args = parse_matrix_args(in_args)
-    dimensions = get_dims(matrix_in, in_args)
+    dimensions = get_dims(schema_madlib, matrix_in, in_args)
     _assert(min(dimensions) > 0,
             "Matrix error: Invalid dimensions for input matrix")
     _assert(dim == 1 or dim == 2,
             "Matrix error: Invalid value for dimension ({0}). "
             "The dimension should be 1 for column and 2 for row".format(dim))
 
-    if _is_sparse(matrix_in, in_args['val']):
-        validate_sparse(matrix_in, in_args)
+    if _is_sparse(schema_madlib, matrix_in, in_args['val']):
+        validate_sparse(schema_madlib, matrix_in, in_args)
         return _matrix_reduction_op_sparse(schema_madlib, matrix_in,
                                            in_args, dim, dimensions,
                                            vector_ops['sparse_agg_expr'])
@@ -1829,8 +1834,8 @@ def matrix_mult(schema_madlib, matrix_a, a_args,
         matrix_trans(schema_madlib, matrix_a, a_args, matrix_out1, None)
         matrix_a = matrix_out1
 
-    a_dim = get_dims(matrix_a, a_args)
-    b_dim = get_dims(matrix_b, b_args)
+    a_dim = get_dims(schema_madlib, matrix_a, a_args)
+    b_dim = get_dims(schema_madlib, matrix_b, b_args)
     _assert(min(a_dim) > 0 and min(b_dim) > 0,
             "Matrix error: Invalid dimensions for input matrices")
     left_dim = a_dim[1]
@@ -1841,8 +1846,8 @@ def matrix_mult(schema_madlib, matrix_a, a_args,
             "Right matrix, row dimension = {1}".format(left_dim, right_dim))
 
     # both matrix_a and matrix_b are dense
-    if (not _is_sparse(matrix_a, a_args['val']) and
-            not _is_sparse(matrix_b, b_args['val'])):
+    if (not _is_sparse(schema_madlib, matrix_a, a_args['val']) and
+            not _is_sparse(schema_madlib, matrix_b, b_args['val'])):
         validate_dense(matrix_a, a_args, row_dim=a_dim[0])
         validate_dense(matrix_b, b_args, row_dim=b_dim[0])
         _matrix_mult_dense(schema_madlib, matrix_a, a_args,
@@ -1852,23 +1857,24 @@ def matrix_mult(schema_madlib, matrix_a, a_args,
     else:
         # sparsify matrix_a if not sparse
         matrix_out3 = "pg_temp." + unique_string() + "_a3"
-        if not _is_sparse(matrix_a, a_args['val']):
+        if not _is_sparse(schema_madlib, matrix_a, a_args['val']):
             # in the future, matrix_sparsify() may remove the arg `use_temp_table`
             matrix_sparsify(matrix_a, a_args,
                             matrix_out3, _matrix_default_args())
             matrix_a = matrix_out3
             a_args = _matrix_default_args()
-        validate_sparse(matrix_a, a_args)
+
+        validate_sparse(schema_madlib, matrix_a, a_args)
 
         # sparsify matrix_b if not sparse
         matrix_out4 = "pg_temp." + unique_string() + "_a4"
-        if not _is_sparse(matrix_b, b_args['val']):
+        if not _is_sparse(schema_madlib, matrix_b, b_args['val']):
             # in the future, matrix_sparsify() may remove the arg `use_temp_table`
             matrix_sparsify(matrix_b, b_args, matrix_out4, None)
             matrix_b = matrix_out4
             if 'col' not in b_args:
                 b_args['col'] = _matrix_default_args()['col']
-        validate_sparse(matrix_b, b_args)
+        validate_sparse(schema_madlib, matrix_b, b_args)
 
         # use transpose of 'b' if specified by user
         matrix_out2 = "pg_temp." + unique_string() + "_a2"
@@ -1895,8 +1901,8 @@ def _matrix_mult_sparse(schema_madlib, matrix_a, a_args,
                         matrix_b, b_args, matrix_out, out_args,
                         use_temp_table=False):
 
-    a_dim = get_dims(matrix_a, a_args)
-    b_dim = get_dims(matrix_b, b_args)
+    a_dim = get_dims(schema_madlib, matrix_a, a_args)
+    b_dim = get_dims(schema_madlib, matrix_b, b_args)
     temp_row, temp_col, temp_val = (unique_string() for i in range(3))
     temp = "TEMP" if use_temp_table else ''
     sql ="""
@@ -1929,7 +1935,7 @@ def _matrix_mult_sparse(schema_madlib, matrix_a, a_args,
     plpy.execute(sql)
     # if the last row or column is all zeros then we need to add a redundant
     # entry to ensure the matrix dimensions can be interpreted
-    res_row_dim, res_col_dim = get_dims(matrix_out, out_args)
+    res_row_dim, res_col_dim = get_dims(schema_madlib, matrix_out, out_args)
     if res_row_dim != a_dim[0] or res_col_dim != b_dim[1]:
         plpy.execute("""
         INSERT INTO {matrix_out} VALUES ({row_count}, {col_count}, 0)
@@ -1960,7 +1966,7 @@ def _matrix_mult_dense(schema_madlib, matrix_a, a_args,
                             matrix_b_trans, b_trans_args,
                             use_temp_table=False)
 
-    b_trans_dim = get_dims(matrix_b_trans, b_trans_args)
+    b_trans_dim = get_dims(schema_madlib, matrix_b_trans, b_trans_args)
 
     if b_trans_dim[0] >= (1024 * 1024 * 1024 / 8):
         # we are restricted by allocation limit of 1GB. Since array is of type
@@ -2022,11 +2028,11 @@ def matrix_square(schema_madlib, matrix_in, in_args,
                                                   'col': in_args['col'],
                                                   'val': in_args['val']})
 
-    dim = get_dims(matrix_in, in_args)
+    dim = get_dims(schema_madlib, matrix_in, in_args)
     _assert(dim[1] == dim[0],
             "Matrix error: Square operation is only defined for square matrices")
-    if _is_sparse(matrix_in, in_args['val']):
-        validate_sparse(matrix_in, in_args)
+    if _is_sparse(schema_madlib, matrix_in, in_args['val']):
+        validate_sparse(schema_madlib, matrix_in, in_args)
         _matrix_mult_sparse(schema_madlib, matrix_in, in_args,
                             matrix_in, in_args,
                             matrix_out, out_args)
@@ -2068,7 +2074,7 @@ def _matrix_scalar_mult_sparse(schema_madlib, matrix_in, in_args, scalar, matrix
             """.format(**locals()), ["FLOAT8"])
         plpy.execute(plan, [scalar])
     else:
-        in_dim = get_dims(matrix_in, in_args)
+        in_dim = get_dims(schema_madlib, matrix_in, in_args)
         plpy.execute("INSERT INTO {0} VALUES ({1}, {2}, 0)".
                      format(matrix_out, in_dim[0], in_dim[1]))
 # ------------------------------------------------------------------------------
@@ -2129,11 +2135,11 @@ def matrix_scalar_mult(schema_madlib, matrix_in, in_args, scalar, matrix_out, ou
                                  in_default_args={'row': in_args['row'],
                                                   'col': in_args['col'],
                                                   'val': in_args['val']})
-    in_dim = get_dims(matrix_in, in_args)
+    in_dim = get_dims(schema_madlib, matrix_in, in_args)
     _assert(min(in_dim) > 0,
             "Matrix error: Invalid dimensions for input matrices")
-    if _is_sparse(matrix_in, in_args['val']):
-        validate_sparse(matrix_in, in_args)
+    if _is_sparse(schema_madlib, matrix_in, in_args['val']):
+        validate_sparse(schema_madlib, matrix_in, in_args)
         _matrix_scalar_mult_sparse(schema_madlib, matrix_in, in_args,
                                    scalar, matrix_out, out_args)
     else:
@@ -2181,7 +2187,7 @@ def matrix_vec_mult(schema_madlib, matrix_in, in_args, vector):
     _validate_input_table(matrix_in)
     _assert(vector is not None, "Matrix error: Invalid input for vector")
     in_args = parse_matrix_args(in_args)
-    in_dim = get_dims(matrix_in, in_args)
+    in_dim = get_dims(schema_madlib, matrix_in, in_args)
     _assert(min(in_dim) > 0,
             "Matrix error: Invalid dimensions for input matrices")
     _assert(in_dim[1] == len(vector),
@@ -2189,8 +2195,8 @@ def matrix_vec_mult(schema_madlib, matrix_in, in_args, vector):
             "and vector ({1} x 1)".format(in_dim, len(vector)))
 
     matrix_temp = None
-    if _is_sparse(matrix_in, in_args['val']):
-        validate_sparse(matrix_in, in_args)
+    if _is_sparse(schema_madlib, matrix_in, in_args['val']):
+        validate_sparse(schema_madlib, matrix_in, in_args)
         matrix_temp = unique_string() + "_a5"
         matrix_densify(schema_madlib,
                        matrix_in, in_args,
@@ -2289,8 +2295,8 @@ def matrix_scale_and_add(schema_madlib,
                                  in_default_args={'row': a_args['row'],
                                                   'col': a_args['col'],
                                                   'val': a_args['val']})
-    a_dim = get_dims(matrix_a, a_args)
-    b_dim = get_dims(matrix_b, b_args)
+    a_dim = get_dims(schema_madlib, matrix_a, a_args)
+    b_dim = get_dims(schema_madlib, matrix_b, b_args)
     _assert(min(a_dim) > 0 and min(b_dim) > 0,
             "Matrix error: Invalid dimensions for input matrices")
     _assert(a_dim[0] == b_dim[0] and a_dim[1] == b_dim[1],

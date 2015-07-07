@@ -446,7 +446,7 @@ def is_col_array(tbl, col):
         plpy.error("Column {0} not found in table {1}".format(col, tbl))
 # -------------------------------------------------------------------------
 
-def is_col_svec(tbl, col):
+def is_col_svec(schema_madlib, tbl, col):
     """
     Return True if the column is of an array datatype
 
@@ -463,8 +463,7 @@ def is_col_svec(tbl, col):
         plpy.error("Input error: Invalid table {0}".format(tbl))
     if not col:
         plpy.error("Input error: Invalid column name {0}".format(col))
-    #schema_str, table = _get_table_schema_names(tbl)
-    table = tbl.strip()
+    schema_str, table = _get_table_schema_names(tbl)
     col = _unquote_name(col)
     
     #TODO : valid table_schema in schema_str
@@ -474,17 +473,33 @@ def is_col_svec(tbl, col):
         WHERE oid IN (
             SELECT atttypid
             FROM pg_attribute
-            WHERE attrelid = '{table_name}'::regclass
-            AND attname = '{col_name}')
-        """.format(table_name=table, col_name=col))
+            WHERE attrelid in (
+                SELECT oid 
+                FROM pg_class
+                WHERE relname = '{table_name}'
+                AND relnamespace IN (
+                    SELECT oid
+                    FROM pg_namespace
+                    WHERE nspname IN {schema_str}
+                )
+            )
+        )
+        AND typnamespace in (
+            SELECT oid 
+            FROM pg_namespace 
+            WHERE nspname = '{col_schema}'
+        )
+        """.format(schema_str=schema_str, table_name=table, col_name=col, col_schema=schema_madlib))
     #print col_type_list
     if col_type_list:
         for col_type_name in col_type_list:
             if col_type_name["typname"].lower() == "svec":
                 return True
-        return False
+    return False
+    '''
     else:
         plpy.error("Column {0} not found in table {1}".format(col, tbl))
+    '''
 # -------------------------------------------------------------------------
 
 def scalar_col_has_no_null(tbl, col):
