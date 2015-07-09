@@ -25,6 +25,64 @@ array_to_string = version_wrapper.select_vec_return()
 # ------------------------------------------------------------------------------
 # -- Utility functions ---------------------------------------------------------
 # ------------------------------------------------------------------------------
+def _matrix_agg_help(schema_madlib, matrix_in, in_args,
+                   matrix_out, out_args, rtype, use_temp_table=False):
+    _validate_input_table(matrix_in)
+    _validate_output_table(matrix_out)
+    in_args = parse_matrix_args(in_args)
+    _validate_sparse(schema_madlib, matrix_in, in_args)
+    out_args = parse_matrix_args(out_args,
+                                 in_default_args={'row': in_args['row'],
+                                                  'val': in_args['val']})
+    rtype=rtype
+    ftype={'dense':"float8[]",'svec': "float8[]::madlib.svec"}
+    retype=ftype[rtype]
+    temp = '' if not use_temp_table else 'TEMP'
+
+    (row_dim, col_dim) = get_dims(schema_madlib, matrix_in, in_args)
+    _assert(col_dim < sys.maxint,
+            "Matrix error: Matrix {0} has too many rows. This cannot be "
+            "transposed in a dense format due to "
+            "restrictions on maximum array size.".format(matrix_in))
+    plpy.execute("""
+        CREATE {temp} TABLE {matrix_out}
+        m4_ifdef(`__POSTGRESQL__', `',
+            `WITH (APPENDONLY=TRUE,COMPRESSTYPE=QUICKLZ)') AS
+        SELECT
+            {in_args[row]} AS {out_args[row]},
+            {schema_madlib}.__matrix_densify_agg(
+                {col_dim}::integer,
+                {in_args[col]}::integer,
+                {in_args[val]})::{retype} AS {out_args[val]}
+        FROM
+            {matrix_in}
+        WHERE
+            {in_args[val]} IS NOT NULL
+        GROUP BY
+            {in_args[row]}
+        m4_ifdef(`__POSTGRESQL__', `',
+            `DISTRIBUTED BY ({out_args[row]})')
+        """.format(**locals()))
+    # Add vector with all zeros for rows not present in the sparse matrix
+    plpy.execute("""
+        INSERT INTO {matrix_out}
+        SELECT row as {out_args[row]}, val as {out_args[val]}
+        FROM
+        (
+            SELECT row
+            FROM generate_series(1, {row_dim}) AS row
+            WHERE row NOT IN
+                    (
+                        SELECT {in_args[row]} as row
+                        FROM {matrix_in}
+                        GROUP BY {in_args[row]}
+                    )
+        ) t1,
+        (
+            SELECT array_agg(val * 0)::{retype} AS val
+            FROM generate_series(1, {col_dim}) AS val
+        ) t2
+        """.format(**locals()))
 
 
 def _matrix_column_to_array_format(source_table, row_id, output_table,
@@ -559,65 +617,32 @@ def matrix_sparsify(matrix_in, in_args,
 
 def matrix_densify(schema_madlib, matrix_in, in_args,
                    matrix_out, out_args, use_temp_table=False):
+    """ Main function for converting sparse matrix to dense matrix
 
-    _validate_input_table(matrix_in)
-    _validate_output_table(matrix_out)
-    in_args = parse_matrix_args(in_args)
-    validate_sparse(schema_madlib, matrix_in, in_args)
-    out_args = parse_matrix_args(out_args,
-                                 in_default_args={'row': in_args['row'],
-                                                  'val': in_args['val']})
-    temp = '' if not use_temp_table else 'TEMP'
-
-    (row_dim, col_dim) = get_dims(schema_madlib, matrix_in, in_args)
-    _assert(col_dim < sys.maxint,
-            "Matrix error: Matrix {0} has too many rows. This cannot be "
-            "transposed in a dense format due to "
-            "restrictions on maximum array size.".format(matrix_in))
-    plpy.execute("""
-        CREATE {temp} TABLE {matrix_out}
-        m4_ifdef(`__POSTGRESQL__', `',
-            `WITH (APPENDONLY=TRUE,COMPRESSTYPE=QUICKLZ)') AS
-        SELECT
-            {in_args[row]} AS {out_args[row]},
-            {schema_madlib}.__matrix_densify_agg(
-                {col_dim}::integer,
-                {in_args[col]}::integer,
-                {in_args[val]}) AS {out_args[val]}
-        FROM
-            {matrix_in}
-        WHERE
-            {in_args[val]} IS NOT NULL
-        GROUP BY
-            {in_args[row]}
-        m4_ifdef(`__POSTGRESQL__', `',
-            `DISTRIBUTED BY ({out_args[row]})')
-        """.format(**locals()))
-
-    # Add vector with all zeros for rows not present in the sparse matrix
-    plpy.execute("""
-        INSERT INTO {matrix_out}
-        SELECT row as {out_args[row]}, val as {out_args[val]}
-        FROM
-        (
-            SELECT row
-            FROM generate_series(1, {row_dim}) AS row
-            WHERE row NOT IN
-                    (
-                        SELECT {in_args[row]} as row
-                        FROM {matrix_in}
-                        GROUP BY {in_args[row]}
-                    )
-        ) t1,
-        (
-            SELECT array_agg(val * 0) AS val
-            FROM generate_series(1, {col_dim}) AS val
-        ) t2
-        """.format(**locals()))
+    Args:
+        @param schema_madlib: Name of the MADlib schema
+        @param matrix_in: Str, Name of the matrix to be converted
+        @param in_args: Str, Key-value string providing column names for matrix_in
+                        The string is of the format "key1=value1, key2=value2 ..."
+                        This is parsed to obtain a dictionary.
+                        Alternatively this argument can also be a dictionary
+                        containing the key-value information (in which case no
+                                                              parsing is performed)
+        @param matrix_out: Str, Name of the matrix to contain converted result
+        @param out_args: Str, Key-value string providing column names for
+                                matrix_out. Like in_args, this can also be dictionary.
+    Returns:
+        None
+    Side effect:
+        Creates an output table containing the dense format of matrix_in
+    """
+    _matrix_agg_help(schema_madlib, matrix_in, in_args,
+                     matrix_out, out_args, 'dense', use_temp_table=False)
 # ------------------------------------------------------------------------------
-#TODO
+
+
 def matrix_svec_to_sparse(schema_madlib, matrix_in, in_args,
-                 matrix_out, out_args):
+                          matrix_out, out_args):
     """ Main function for converting svec matrix to sparse matrix
 
     Args:
@@ -676,9 +701,10 @@ def matrix_svec_to_sparse(schema_madlib, matrix_in, in_args,
         """.format(matrix_out=matrix_out, row_dim=row_dim, col_dim=col_dim))
     '''
 #-------------------------------------------------------------------------------------------
-#TODO
+
+
 def matrix_sparse_to_svec(schema_madlib, matrix_in, in_args,
-                 matrix_out, out_args):
+                          matrix_out, out_args):
     """ Main function for converting sparse matrix to svec matrix
 
     Args:
@@ -698,40 +724,11 @@ def matrix_sparse_to_svec(schema_madlib, matrix_in, in_args,
     Side effect:
         Creates an output table containing the svec format of matrix_in
     """
-    # validate and parse params for in matrix
-    _validate_input_table(matrix_in)
-    in_args = parse_matrix_args(in_args)
-    _validate_sparse(schema_madlib, matrix_in, in_args)
-    (row_dim, col_dim) = get_dims(schema_madlib, matrix_in, in_args)
-    _assert(col_dim < sys.maxint,
-            "Matrix error: Matrix {0} has too many rows. This cannot be "
-            "transposed in a dense format due to "
-            "restrictions on maximum array size.".format(matrix_in))
-    # validate and parse params for out matrix
-    _validate_output_table(matrix_out)
-    out_args = parse_matrix_args(out_args, 
-                                 in_default_args={'row' : in_args['row'],
-                                                  'val' : in_args['val']});
-    # convert 
-    plpy.execute("""
-        CREATE TABLE {matrix_out}
-        m4_ifdef(`__POSTGRESQL__', `',
-            `WITH (APPENDONLY=TRUE,COMPRESSTYPE=QUICKLZ)') AS
-        SELECT
-            {in_args[row]} AS {out_args[row]},
-            {schema_madlib}.__matrix_densify_agg(
-                {col_dim}::integer,
-                {in_args[col]}::integer,
-                {in_args[val]})::float8[]::madlib.svec AS {out_args[val]}
-        FROM
-            {matrix_in}
-        GROUP BY
-            {in_args[row]}
-        m4_ifdef(`__POSTGRESQL__', `',
-            `DISTRIBUTED BY ({out_args[row]})')
-        """.format(**locals()))
+    _matrix_agg_help(schema_madlib, matrix_in, in_args,
+                     matrix_out, out_args, rtype="svec", use_temp_table=False)
 #-------------------------------------------------------------------------------------------
-#TODO
+
+
 def matrix_dense_to_svec(schema_madlib, matrix_in, in_args,
                  matrix_out, out_args):
     """ Main function for converting dense matrix to svec matrix
@@ -777,7 +774,8 @@ def matrix_dense_to_svec(schema_madlib, matrix_in, in_args,
             `DISTRIBUTED BY ({out_args[row]})')
         """.format(**locals()))
 #-------------------------------------------------------------------------------------------
-#TODO
+
+
 def matrix_svec_to_dense(schema_madlib, matrix_in, in_args,
                  matrix_out, out_args):
     """ Main function for converting svec matrix to dense matrix

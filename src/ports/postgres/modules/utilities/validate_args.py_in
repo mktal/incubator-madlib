@@ -492,8 +492,8 @@ def is_col_svec(schema_madlib, tbl, col):
     #print col_type_list
     if col_type_list:
         for col_type_name in col_type_list:
-            if col_type_name["typname"].lower() == "svec" and
-               col_type_name["nspname"].lower() == schema_madlib:
+            if (col_type_name["typname"].lower() == "svec" and
+               col_type_name["nspname"].lower() == schema_madlib):
                 return True
         return False
     else:

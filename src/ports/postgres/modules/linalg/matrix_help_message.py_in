@@ -29,6 +29,19 @@ An example 3x10 matrix would be the below table:
 The column names above can be user-defined - the matrix functions provide options
 to input these column names. The default names expected are 'row_num' and 'val'.
 """
+    dense_format = """
+A svec matrix is represented as a distributed collection of 1-D svecs.
+An example 3x10 matrix would be the below table:
+
+ row_id |         row_svec
+--------+-------------------------
+   1    | {{1,1,4,1,1,1}:{9,6,0,3,10,8}}
+   2    | {{1,1,1,6}:{8,2,6,0}}
+   3    | {{4,1,1,3}:{0,6,3,0}}
+
+The column names above can be user-defined - the matrix functions provide options
+to input these column names. The default names expected are 'row_num' and 'val'.
+"""
     sparse_format = """
 A sparse matrix is represented using the row and column indices for each
 non-zero entry of the matrix. This representation is useful for sparse matrices,
@@ -59,7 +72,7 @@ and 'val'.
     if not message:
         # TODO
         help_string = dense_format + sparse_format + """
-            Run "SELECT matrix_info('dense');" or "SELECT matrix_info('sparse');"
+            Run "SELECT matrix_info('dense');" or "SELECT matrix_info('sparse');"or"SELECT matrix_info('dense');"
             for examples of the specific data format.
         """
     elif message == 'dense':
@@ -141,6 +154,27 @@ INSERT INTO "mat_B_sparse" (row_id, col_id, val) VALUES (9, 1, 6);
 INSERT INTO "mat_B_sparse" (row_id, col_id, val) VALUES (9, 2, 3);
 INSERT INTO "mat_B_sparse" (row_id, col_id, val) VALUES (10, 10, NULL);
         """
+    elif message == 'svec':
+        help_string = svec_format + """
+
+-- Example to create svec matices
+-- These matrices are used in all the matrix operation help message examples.
+
+DROP TABLE IF EXISTS "matrix_A_svec";
+CREATE TABLE "matrix_A_svec" (
+    row_id integer,
+    row_vec madlib.svec
+);
+INSERT INTO "mat_A_svec" VALUES (1,'{1,1,4,1,1,1}:{9,6,0,3,10,8}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (2,'{1,1,1,6}:{8,2,6,0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (3,'{4,1,1,3}:{0,6,3,0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (4,'{9}:{0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (5,'{9}:{0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (6,'{9}:{0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (7,'{1,8}:{7,0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (8,'{1,1,1,6}:{0,8,5,0}'::madlib.svec);
+INSERT INTO "mat_A_svec" VALUES (9,'{1,1,7}:{6,3,0}'::madlib.svec);
+   """
     else:
         help_string = "No such option. Use {schema_madlib}.matrix_add('usage')"
     return help_string.format(schema_madlib=schema_madlib)
@@ -1030,7 +1064,346 @@ SELECT madlib.matrix_max('"mat_A_sparse"', 'row="rowNum", val=entry', 2);
     else:
         help_string = "No such option. Use {schema_madlib}.matrix_max('usage')"
     return help_string.format(schema_madlib=schema_madlib)
+#---------------------------------------------------------
+
+
+def matrix_svec_to_sparse_help_message(schema_madlib, message, **kwargs):
+    """ Help message for Matrix translation from svec format to sparse format
+    """
+    if not message:
+        help_string = """
+------------------------------------------------------------
+                        SUMMARY
+------------------------------------------------------------
+Functionality: Matrix translation from svec format to sparse format
+
+This function provides matrix in sparse format from matrix in svec format.
+
+For more details on the function usage:
+    SELECT {schema_madlib}.matrix_svec_to_sparse('usage');
+For an example on using this function:
+    SELECT {schema_madlib}.matrix_svec_to_sparse('example');
+For more details on svec format:
+    SELECT {schema_madlib}.matrix_info('svec');
+        """
+    elif message.lower().strip() in ['usage', 'help', '?']:
+        help_string = """
+------------------------------------------------------------
+                        USAGE
+------------------------------------------------------------
+
+SELECT {schema_madlib}.matrix_svec_sparse(
+    'matrix_in',     -- Name of the table containing input matrix
+    'in_args',       -- String argument containing matrix_in specific arguments
+                     --    (see matrix arguments below for options)
+    'matrix_out',     -- Name of the table containing output matrix
+    'out_args',       -- String argument containing matrix_out specific arguments
+                     --    (see matrix arguments below for options)
+
+);
+
+------------------------------------------------------------
+                    MATRIX ARGUMENTS
+------------------------------------------------------------
+A string containing multiple named arguments of the form "name=value".
+This argument is used as a container for multiple parameters related to a single
+matrix.
+
+The following parameters are supported for this string argument:
+    - row: (Default: 'row_num') Name of the column containing row index of the matrix.
+    - col: (Default: 'col_num') Name of the column containing column index of the matrix.
+    - val: (Default: 'val') Name of the column containing the entries of the matrix.
+
+These string arguments can be NULL if the default values are to be used.
+
+If not provided, out_args uses same value as a_args.
+
+------------------------------------------------------------
+                        OUTPUT
+------------------------------------------------------------
+The output table ('matrix_r' above) has the following columns
+
+-- Sparse format
+    '{{row}}'        -- Row index for each element
+    '{{col}}'        -- Column index for each element
+    '{{val}}'        -- Value for each element
+
+The column names in {{}} are set using the options provided in output
+matrix arguments (out_args).    
+        """
+    elif message.lower().strip() in ['example', 'examples']:
+        help_string = """
+------------------------------------------------------------
+                        EXAMPLE
+-----------------------------------------------------------
+-- Below example translate A in svec format to A in sparse format
+
+-- Data for "mat_A_svec" can be obtained from
+--      SELECT matrix_info('svec');
+
+SELECT madlib.matrix_svec_to_sparse('"mat_A_svec"', 'row=row_id, val=svec',
+                                     'mat_r', 'row=row_id,col=col_id,val=val');
+SELECT * FROM mat_r ORDER BY row_id;
+
+        """
+    else:
+        help_string = "No such option. Use {schema_madlib}.matrix_max('usage')"
+    return help_string.format(schema_madlib=schema_madlib)
 # ------------------------------------------------------------
+
+
+
+def matrix_svec_to_dense_help_message(schema_madlib, message, **kwargs):
+    """ Help message for Matrix translation from svec format to dense format
+    """
+    if not message:
+        help_string = """
+------------------------------------------------------------
+                        SUMMARY
+------------------------------------------------------------
+Functionality: Matrix translation from svec format to dense format
+
+This function provides matrix in dense format from matrix in svec format.
+
+For more details on the function usage:
+    SELECT {schema_madlib}.matrix_svec_to_dense('usage');
+For an example on using this function:
+    SELECT {schema_madlib}.matrix_svec_to_dense('example');
+For more details on svec format:
+    SELECT {schema_madlib}.matrix_info('svec');
+        """
+    elif message.lower().strip() in ['usage', 'help', '?']:
+        help_string = """
+------------------------------------------------------------
+                        USAGE
+------------------------------------------------------------
+
+SELECT {schema_madlib}.matrix_svec_to_dense(
+    'matrix_in',     -- Name of the table containing input matrix
+    'in_args',       -- String argument containing matrix_in specific arguments
+                     --    (see matrix arguments below for options)
+    'matrix_out',     -- Name of the table containing output matrix
+    'out_args',       -- String argument containing matrix_out specific arguments
+                     --    (see matrix arguments below for options)
+
+);
+
+------------------------------------------------------------
+                    MATRIX ARGUMENTS
+------------------------------------------------------------
+A string containing multiple named arguments of the form "name=value".
+This argument is used as a container for multiple parameters related to a single
+matrix.
+
+The following parameters are supported for this string argument:
+    - row: (Default: 'row_num') Name of the column containing row index of the matrix.
+    - col: (Default: 'col_num') Name of the column containing column index of the matrix.
+    - val: (Default: 'val') Name of the column containing the entries of the matrix.
+                            For a dense matrix, this should be of an ARRAY type.
+
+These string arguments can be NULL if the default values are to be used.
+
+If not provided, out_args uses same value as a_args.
+
+------------------------------------------------------------
+                        OUTPUT
+------------------------------------------------------------
+The output table ('matrix_r' above) has the following columns
+
+-- Dense format
+    '{{row}}'       -- Row index for each row of the matrix
+    '{{val}}'       -- Each row vector
+
+The column names in {{}} are set using the options provided in output
+matrix arguments (out_args).    
+        """
+    elif message.lower().strip() in ['example', 'examples']:
+        help_string = """
+------------------------------------------------------------
+                        EXAMPLE
+-----------------------------------------------------------
+-- Below example translate A in svec format to A in dense format
+
+-- Data for "mat_A_svec" can be obtained from
+--      SELECT matrix_info('svec');
+
+SELECT madlib.matrix_svec_to_dense('"mat_A_svec"', 'row=row_id, val=svec',
+                                    'mat_r', 'row=row_id,val=vec');
+SELECT * FROM mat_r ORDER BY row_id;
+
+        """
+    else:
+        help_string = "No such option. Use {schema_madlib}.matrix_max('usage')"
+    return help_string.format(schema_madlib=schema_madlib)
+## ------------------------------------------------------------
+
+def matrix_sparse_to_svec_help_message(schema_madlib, message, **kwargs):
+    """ Help message for Matrix translation from sparse format to svec format
+    """
+    if not message:
+        help_string = """
+------------------------------------------------------------
+                        SUMMARY
+------------------------------------------------------------
+Functionality: Matrix translation from sparse format to svec format
+
+This function provides matrix in svec format from matrix in sparse format.
+
+For more details on the function usage:
+    SELECT {schema_madlib}.matrix_sparse_to_svec('usage');
+For an example on using this function:
+    SELECT {schema_madlib}.matrix_sparse_to_svec('example');
+For more details on sparse format:
+    SELECT {schema_madlib}.matrix_info('sparse');
+        """
+    elif message.lower().strip() in ['usage', 'help', '?']:
+        help_string = """
+------------------------------------------------------------
+                        USAGE
+------------------------------------------------------------
+
+SELECT {schema_madlib}.matrix_sparse_to_svec(
+    'matrix_in',     -- Name of the table containing input matrix
+    'in_args',       -- String argument containing matrix_in specific arguments
+                     --    (see matrix arguments below for options)
+    'matrix_out',     -- Name of the table containing output matrix
+    'out_args',       -- String argument containing matrix_out specific arguments
+                     --    (see matrix arguments below for options)
+
+);
+
+------------------------------------------------------------
+                    MATRIX ARGUMENTS
+------------------------------------------------------------
+A string containing multiple named arguments of the form "name=value".
+This argument is used as a container for multiple parameters related to a single
+matrix.
+
+The following parameters are supported for this string argument:
+    - row: (Default: 'row_num') Name of the column containing row index of the matrix.
+    - col: (Default: 'col_num') Name of the column containing column index of the matrix.
+    - val: (Default: 'val') Name of the column containing the entries of the matrix.
+
+These string arguments can be NULL if the default values are to be used.
+
+If not provided, out_args uses same value as a_args.
+
+------------------------------------------------------------
+                        OUTPUT
+------------------------------------------------------------
+The output table ('matrix_r' above) has the following columns
+
+-- Svec format
+    '{{row}}'       -- Row index for each row of the matrix
+    '{{val}}'       -- Each row svec
+
+The column names in {{}} are set using the options provided in output
+matrix arguments (out_args).    
+        """
+    elif message.lower().strip() in ['example', 'examples']:
+        help_string = """
+------------------------------------------------------------
+                        EXAMPLE
+-----------------------------------------------------------
+-- Below example translate A in sparse format to A in svec format
+
+-- Data for "mat_A_sparse" can be obtained from
+--      SELECT matrix_info('sparse');
+
+SELECT madlib.matrix_sparse_to_svec('"mat_A_sparse"', 'row="rowNum", col=col_num, val=entry',
+                                     'mat_r', 'row=row_id,val=svec');
+SELECT * FROM mat_r ORDER BY row_id;
+
+        """
+    else:
+        help_string = "No such option. Use {schema_madlib}.matrix_max('usage')"
+    return help_string.format(schema_madlib=schema_madlib)
+# ------------------------------------------------------------
+
+def matrix_dense_to_svec_help_message(schema_madlib, message, **kwargs):
+    """ Help message for Matrix translation from dense format to svec format
+    """
+    if not message:
+        help_string = """
+------------------------------------------------------------
+                        SUMMARY
+------------------------------------------------------------
+Functionality: Matrix translation from dense format to svec format
+
+This function provides matrix in svec format from matrix in dense format.
+
+For more details on the function usage:
+    SELECT {schema_madlib}.matrix_dense_to_svec('usage');
+For an example on using this function:
+    SELECT {schema_madlib}.matrix_dense_to_svec('example');
+For more details on dense format:
+    SELECT {schema_madlib}.matrix_info('dense');
+        """
+    elif message.lower().strip() in ['usage', 'help', '?']:
+        help_string = """
+------------------------------------------------------------
+                        USAGE
+------------------------------------------------------------
+
+SELECT {schema_madlib}.matrix_dense_to_svec(
+    'matrix_in',     -- Name of the table containing input matrix
+    'in_args',       -- String argument containing matrix_in specific arguments
+                     --    (see matrix arguments below for options)
+    'matrix_out',     -- Name of the table containing output matrix
+    'out_args',       -- String argument containing matrix_out specific arguments
+                     --    (see matrix arguments below for options)
+
+);
+
+------------------------------------------------------------
+                    MATRIX ARGUMENTS
+------------------------------------------------------------
+A string containing multiple named arguments of the form "name=value".
+This argument is used as a container for multiple parameters related to a single
+matrix.
+
+The following parameters are supported for this string argument:
+    - row: (Default: 'row_num') Name of the column containing row index of the matrix.
+    - col: (Default: 'col_num') Name of the column containing column index of the matrix.
+    - val: (Default: 'val') Name of the column containing the entries of the matrix.
+                            For a dense matrix, this should be of an ARRAY type.
+
+These string arguments can be NULL if the default values are to be used.
+
+If not provided, out_args uses same value as a_args.
+
+------------------------------------------------------------
+                        OUTPUT
+------------------------------------------------------------
+The output table ('matrix_r' above) has the following columns
+
+-- Svec format
+    '{{row}}'       -- Row index for each row of the matrix
+    '{{val}}'       -- Each row svec
+
+The column names in {{}} are set using the options provided in output
+matrix arguments (out_args).    
+        """
+    elif message.lower().strip() in ['example', 'examples']:
+        help_string = """
+------------------------------------------------------------
+                        EXAMPLE
+-----------------------------------------------------------
+-- Below example translate A in dense format to A in svec format
+
+-- Data for "mat_A_dense" can be obtained from
+--      SELECT matrix_info('dense');
+
+SELECT madlib.matrix_dense_to_svec('"mat_A_dense"', 'row=row_id, val=vec', 
+                                    'mat_r', 'row=row_id,val=svec');
+SELECT * FROM mat_r ORDER BY row_id;
+
+        """
+    else:
+        help_string = "No such option. Use {schema_madlib}.matrix_max('usage')"
+    return help_string.format(schema_madlib=schema_madlib)
+# ------------------------------------------------------------
+
 
 
 def matrix_mean_help_message(schema_madlib, message, **kwargs):
