@@ -297,7 +297,8 @@ def svd_sparse(schema_madlib, source_table, output_table_prefix,
     # modules require the dimensionality of the sparse matrix in the table
     # as a row: (row_dim, col_dim, NULL)
     converted_tbl = "pg_temp." + unique_string()
-    create_temp_sparse_matrix_table_with_dims(source_table,
+    create_temp_sparse_matrix_table_with_dims(schema_madlib,
+                                              source_table,
                                               converted_tbl,
                                               row_id, col_id, value,
                                               row_dim, col_dim)

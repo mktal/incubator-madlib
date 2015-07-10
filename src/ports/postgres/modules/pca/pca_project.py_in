@@ -315,7 +315,8 @@ def pca_sparse_project(schema_madlib,
     # Step 2: Create a copy of the sparse matrix and add row_dims and col_dims
     # Warning: This changes the column names of the table
     sparse_table_copy = "pg_temp." + unique_string() + "_sparse_table_copy"
-    create_temp_sparse_matrix_table_with_dims(source_table,
+    create_temp_sparse_matrix_table_with_dims(schema_madlib,
+                                              source_table,
                                               sparse_table_copy,
                                               row_id,
                                               col_id,

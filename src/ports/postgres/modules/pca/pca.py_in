@@ -248,9 +248,8 @@ def pca_sparse(schema_madlib,
     sparse_temp = "pg_temp." + unique_string() + "_sparse"
 
     # Add in the dimension information need by the densifying process
-    create_temp_sparse_matrix_table_with_dims(source_table, sparse_temp,
-                                              row_id, col_id, val_id,
-                                              row_dim, col_dim)
+    create_temp_sparse_matrix_table_with_dims(schema_madlib, source_table, sparse_temp,
+                                              row_id, col_id, val_id, row_dim, col_dim)
 
     x_dense = "pg_temp." + unique_string() + "_dense"
     plpy.execute("""

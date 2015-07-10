@@ -140,7 +140,8 @@ def _matrix_column_to_array_format(source_table, row_id, output_table,
                    val_col_names=','.join(all_col_names)))
 
 
-def create_temp_sparse_matrix_table_with_dims(source_table,
+def create_temp_sparse_matrix_table_with_dims(schema_madlib,
+                                              source_table,
                                               out_table,
                                               row_id, col_id, value,
                                               row_dim, col_dim):
@@ -570,7 +571,7 @@ def _validate_block(matrix, matrix_args):
 # ------------------------------------------------------------------------------
 
 
-def matrix_sparsify(matrix_in, in_args,
+def matrix_sparsify(schema_madlib, matrix_in, in_args,
                     matrix_out, out_args, use_temp_table=False):
 
     _validate_input_table(matrix_in)
@@ -980,7 +981,7 @@ def matrix_elem_op(schema_madlib, matrix_a, a_args,
         matrix_out1 = "pg_temp." + unique_string() + "_a1"
         if not _is_sparse(schema_madlib, matrix_a, a_args['val']):
             # in the future, matrix_sparsify() may remove the arg `use_temp_table`
-            matrix_sparsify(matrix_a, a_args,
+            matrix_sparsify(schema_madlib, matrix_a, a_args,
                             matrix_out1, _matrix_default_args(), False)
             matrix_a = matrix_out1
             a_args = _matrix_default_args()
@@ -991,7 +992,7 @@ def matrix_elem_op(schema_madlib, matrix_a, a_args,
         matrix_out2 = "pg_temp." + unique_string() + "_a2"
         if not _is_sparse(schema_madlib, matrix_b, b_args['val']):
             # in the future, matrix_sparsify() may remove the arg `use_temp_table`
-            matrix_sparsify(matrix_b, b_args,
+            matrix_sparsify(schema_madlib, matrix_b, b_args,
                             matrix_out2, _matrix_default_args(), False)
             matrix_b = matrix_out2
             b_args = _matrix_default_args()
@@ -1857,7 +1858,7 @@ def matrix_mult(schema_madlib, matrix_a, a_args,
         matrix_out3 = "pg_temp." + unique_string() + "_a3"
         if not _is_sparse(schema_madlib, matrix_a, a_args['val']):
             # in the future, matrix_sparsify() may remove the arg `use_temp_table`
-            matrix_sparsify(matrix_a, a_args,
+            matrix_sparsify(schema_madlib, matrix_a, a_args,
                             matrix_out3, _matrix_default_args())
             matrix_a = matrix_out3
             a_args = _matrix_default_args()
@@ -1868,7 +1869,7 @@ def matrix_mult(schema_madlib, matrix_a, a_args,
         matrix_out4 = "pg_temp." + unique_string() + "_a4"
         if not _is_sparse(schema_madlib, matrix_b, b_args['val']):
             # in the future, matrix_sparsify() may remove the arg `use_temp_table`
-            matrix_sparsify(matrix_b, b_args, matrix_out4, None)
+            matrix_sparsify(schema_madlib, matrix_b, b_args, matrix_out4, None)
             matrix_b = matrix_out4
             if 'col' not in b_args:
                 b_args['col'] = _matrix_default_args()['col']

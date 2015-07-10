@@ -1754,7 +1754,7 @@ MADLIB_SCHEMA.matrix_sparsify
 )
 RETURNS MADLIB_SCHEMA.matrix_result AS $$
     PythonFunctionBodyOnly(`linalg', `matrix_ops')
-    matrix_ops.matrix_sparsify(matrix_in, in_args, matrix_out,
+    matrix_ops.matrix_sparsify(schema_madlib, matrix_in, in_args, matrix_out,
                                out_args, use_temp_table)
     return [matrix_out]
 $$ LANGUAGE plpythonu
