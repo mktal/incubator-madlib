@@ -534,7 +534,7 @@ def _validate_svec(schema_madlib, matrix, matrix_args, checkCol=True, row_dim=No
         MAX_ROWS = 20
         bad_rows = [str(i['r']) for i in non_unique_rows[:MAX_ROWS]]
         plpy.error(
-            """Matrix error: Following {row} values are invalid in dense matrix ({m}).
+            """Matrix error: Following {row} values are invalid in svec matrix ({m}).
 
 (Displaying a maximum of {M_R} entries)
 {row}
@@ -546,8 +546,11 @@ Error: Above {row} values are invalid in dense matrix ({m}).
                        row=matrix_args['row'],
                        all_rows="\n".join(bad_rows),
                        M_R=MAX_ROWS))
-
-
+    col_dims = plpy.execute("""
+                      SELECT  count(DISTINCT madlib.svec_dimension({matrix_args[val]})) as number from {matrix}
+                     """.format(**locals()))
+    if col_dims[0]['number'] > 1:
+        plpy.error("Matrix error: The number of columns is different")
 
 def _validate_block(matrix, matrix_args):
     _assert(table_exists(matrix), "The input table {0} doesn't exist".format(matrix))
