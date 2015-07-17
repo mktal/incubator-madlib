@@ -249,7 +249,7 @@ def _validate_args(schema_madlib,
         _assert(row_dim > 0 and col_dim > 0,
                 "PCA error: row_dim/col_dim should be positive integer")
 
-        validate_sparse(source_table,
+        validate_sparse(schema_madlib, source_table,
                         {'row': row_id, 'col': col_id, 'val': val_id},
                         checkCol=False)
 # ------------------------------------------------------------------------
@@ -403,7 +403,8 @@ def pca_project(schema_madlib,
     if(need_new_column_names):
         source_table = source_table_copy
 
-    [row_dim, col_dim] = get_dims(source_table,
+    [row_dim, col_dim] = get_dims(schema_madlib,
+                                  source_table,
                                   {'row': 'row_id', 'col': 'col_id',
                                    'val': 'row_vec'})
     validate_dense(source_table,

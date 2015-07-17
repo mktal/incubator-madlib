@@ -100,7 +100,7 @@ def _validate_args(schema_madlib, source_table, output_table_prefix, k,
                 "SVD error: {1} column does not exist in {0}!"
                 .format(source_table, val_id))
 
-        validate_sparse(source_table,
+        validate_sparse(schema_madlib, source_table,
                         {'row': row_id, 'col': col_id, 'val': val_id},
                         checkCol=False)
     if result_summary_table is not None:
@@ -200,7 +200,8 @@ def svd_block(schema_madlib, source_table, output_table_prefix,
                    result_summary_table=result_summary_table,
                    is_block=True)
 
-    [row_dim, col_dim] = get_dims(source_table,
+    [row_dim, col_dim] = get_dims(schema_madlib,
+                                  source_table,
                                   {'row': 'row_id', 'col': 'col_id',
                                    'val': 'block'},
                                   is_block=True)
@@ -476,7 +477,8 @@ def svd(schema_madlib, source_table, output_table_prefix,
     if(need_new_column_names):
         source_table = source_table_copy
 
-    [row_dim, col_dim] = get_dims(source_table,
+    [row_dim, col_dim] = get_dims(schema_madlib,
+                                  source_table,
                                   {'row': 'row_id', 'col': 'col_id', 'val': 'row_vec'})
     validate_dense(source_table,
                    {'row': 'row_id', 'val': 'row_vec'},
@@ -509,7 +511,8 @@ def svd(schema_madlib, source_table, output_table_prefix,
 
     if result_summary_table:
         t1 = time.time()
-        [row_dim, col_dim] = get_dims(source_table,
+        [row_dim, col_dim] = get_dims(schema_madlib,
+                                      source_table,
                                       {'row': 'row_id', 'col': 'col_id', 'val': 'row_vec'})
         arguments = {'schema_madlib': schema_madlib,
                      'source_table': source_table,
@@ -820,7 +823,8 @@ def lanczos_bidiagonalize(schema_madlib, source_table, output_table_prefix,
     global actual_lanczos_iterations
     # Get the dimensions of the matrix
     val = 'block' if is_block else 'row_vec'
-    [row_dim, col_dim] = get_dims(source_table,
+    [row_dim, col_dim] = get_dims(schema_madlib,
+                                  source_table,
                                   {'row': 'row_id',
                                    'col': 'col_id',
                                    'val': val},
@@ -947,7 +951,8 @@ def lanczos_bidiagonalize_sparse(schema_madlib, source_table,
 
     global actual_lanczos_iterations
     # Get the dimensions of the matrix
-    [row_dim, col_dim] = get_dims(source_table,
+    [row_dim, col_dim] = get_dims(schema_madlib,
+                                  source_table,
                                   {'row': row_id, 'col': col_id, 'val': val})
     inplace_trans = False
     if row_dim < col_dim:

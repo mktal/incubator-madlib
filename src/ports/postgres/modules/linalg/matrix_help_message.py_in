@@ -29,7 +29,7 @@ An example 3x10 matrix would be the below table:
 The column names above can be user-defined - the matrix functions provide options
 to input these column names. The default names expected are 'row_num' and 'val'.
 """
-    dense_format = """
+    svec_format = """
 A svec matrix is represented as a distributed collection of 1-D svecs.
 An example 3x10 matrix would be the below table:
 

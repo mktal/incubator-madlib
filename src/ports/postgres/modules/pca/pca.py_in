@@ -119,7 +119,7 @@ def _validate_args(schema_madlib,
         if col_dim <= 0:
             plpy.error("PCA error: The column dimension must be larger than 0!")
 
-        validate_sparse(source_table,
+        validate_sparse(schema_madlib, source_table,
                         {'row': row_id, 'col': col_id, 'val': val_id},
                         checkCol=False)
     if use_correlation:
@@ -349,7 +349,8 @@ def pca(schema_madlib, source_table, pc_table, row_id,
     if(created_new_table):
         source_table = source_table_copy
 
-    [row_dim, col_dim] = get_dims(source_table,
+    [row_dim, col_dim] = get_dims(schema_madlib,
+                                  source_table,
                                   {'row': 'row_id', 'col': 'col_id',
                                    'val': 'row_vec'})
     validate_dense(source_table,

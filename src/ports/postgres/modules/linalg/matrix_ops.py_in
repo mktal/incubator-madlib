@@ -30,7 +30,7 @@ def _matrix_agg_help(schema_madlib, matrix_in, in_args,
     _validate_input_table(matrix_in)
     _validate_output_table(matrix_out)
     in_args = parse_matrix_args(in_args)
-    _validate_sparse(schema_madlib, matrix_in, in_args)
+    validate_sparse(schema_madlib, matrix_in, in_args)
     out_args = parse_matrix_args(out_args,
                                  in_default_args={'row': in_args['row'],
                                                   'val': in_args['val']})
@@ -385,7 +385,7 @@ def validate_sparse(schema_madlib, matrix, matrix_args, checkCol=True):
                 "datatype".format(matrix_args['val']))
 
     # verify that row and col entries are in the right range
-    row_dim, col_dim = get_dims(matrix, matrix_args)
+    row_dim, col_dim = get_dims(schema_madlib, matrix, matrix_args)
     invalid_rows = plpy.execute("""
             -- Check if only row indices in [1, row_dim] and
             -- col_indices in [1, col_dim] are present
@@ -580,7 +580,7 @@ def matrix_sparsify(schema_madlib, matrix_in, in_args,
     _validate_input_table(matrix_in)
     _validate_output_table(matrix_out)
     in_args = parse_matrix_args(in_args)
-    (row_dim, col_dim) = get_dims(matrix_in, in_args)
+    (row_dim, col_dim) = get_dims(schema_madlib, matrix_in, in_args)
     validate_dense(matrix_in, in_args, row_dim=row_dim)
 
     default_args = {'row': in_args['row'], 'val': in_args['val']}
@@ -758,7 +758,7 @@ def matrix_dense_to_svec(schema_madlib, matrix_in, in_args,
     _validate_input_table(matrix_in)
     in_args = parse_matrix_args(in_args)
     (row_dim, col_dim) = get_dims(schema_madlib, matrix_in, in_args)
-    _validate_dense(matrix_in, in_args, row_dim=row_dim)
+    validate_dense(matrix_in, in_args, row_dim=row_dim)
     # validate and parse params for out matrix
     _validate_output_table(matrix_out)
     out_args = parse_matrix_args(out_args, 
@@ -972,7 +972,7 @@ def matrix_elem_op(schema_madlib, matrix_a, a_args,
     _assert(a_dim[0] == b_dim[0] and a_dim[1] == b_dim[1],
             "Matrix error: The dimensions of the two matrices don't match")
 
-    if not _is_sparse(schema_madlib,atrix_a, a_args['val']) and not _is_sparse(schema_madlib, matrix_b, b_args['val']):
+    if not _is_sparse(schema_madlib, matrix_a, a_args['val']) and not _is_sparse(schema_madlib, matrix_b, b_args['val']):
         # both matrix_a and matrix_b are dense
         validate_dense(matrix_a, a_args)
         validate_dense(matrix_b, b_args)
@@ -1336,8 +1336,8 @@ def matrix_extract(schema_madlib, matrix_in, in_args, extract_dim, index=0):
 
     _assert(min(in_dim) > 0,
             "Matrix error: Invalid dimensions for input matrix")
-    _assert(index >= 0, "Matrix error: The index ({0}) should be non-negative".format(index))
-    _assert(in_dim[extract_dim - 1] > index,
+    _assert(index >= 1, "Matrix error: The index ({0}) should be positive".format(index))
+    _assert(in_dim[extract_dim - 1] >= index,
             "Matrix error: The index ({0}) is invalid compared to "
             "dimension size ({1})".format(index, in_dim[extract_dim - 1]))
 
