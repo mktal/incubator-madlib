@@ -773,17 +773,14 @@ AnyType lda_parse_model::run(AnyType & args){
         }
     }
 
-    int dims3[1] = {topic_num};
-    int lbs3[1] = {1};
+    //int dims3[1] = {topic_num};
+    //int lbs3[1] = {1};
 
-    MutableArrayHandle<int64_t> total_topic_counts(
-        madlib_construct_md_array(
-            NULL, NULL, 1, dims3, lbs3, INT8TI.oid, INT8TI.len, INT8TI.byval,
-            INT8TI.align));
+    MutableNativeColumnVector total_topic_counts(allocateArray<double>(topic_num));
 
     for (int i = 0; i < voc_size; i ++) {
         for (int j = 0; j < topic_num; j ++) {
-            total_topic_counts[j] += model[i * (topic_num + 1) + j];
+            total_topic_counts[j] += static_cast<double>(model[i * (topic_num + 1) + j]);
         }
     }
 

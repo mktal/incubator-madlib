@@ -1108,7 +1108,7 @@ CREATE TYPE MADLIB_SCHEMA._pivotalr_lda_model AS
 (
     model_matrix_part1  integer[],
     model_matrix_part2  integer[],
-    total_topic_counts  bigint[]
+    total_topic_counts  double precision[]
 );
 
 
