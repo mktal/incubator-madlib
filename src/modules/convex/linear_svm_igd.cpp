@@ -53,11 +53,11 @@ linear_svm_igd_transition::run(AnyType &args) {
     // For other tuples: args[0] holds the computation state until last tuple
     GLMIGDState<MutableArrayHandle<double> > state = args[0];
 
-    const double lambda = args[6].getAs<double>();
-    const bool isL2 = args[7].getAs<bool>();
-    const int nTuples = args[8].getAs<int>();
+    const double lambda = args[6].getAs<double>();  // reg parameter
+    const bool isL2 = args[7].getAs<bool>();        // if l2 regularized
+    const int nTuples = args[8].getAs<int>();       //
 
-    // initilize the state if first tuple
+    // initialize the state if first tuple
     if (state.algo.numRows == 0) {
         if (!args[3].isNull()) {
             GLMIGDState<ArrayHandle<double> > previousState = args[3];
