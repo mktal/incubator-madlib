@@ -198,7 +198,7 @@ include(OSXUtils)
 
 # -- Include all parts ---------------------------------------------------------
 
-# -- Add subdirectories --------------------------------------------------------
+# -- Add subdirectories --------------`------------------------------------------
 
 add_subdirectory(src)
 if(CMAKE_COMPILER_IS_GNUCC AND CMAKE_COMPILER_IS_GNUCXX)
@@ -264,3 +264,11 @@ install(CODE "
            )
 ")
 
+# set(CMAKE_XCODE_ATTRIBUTE_GCC_VERSION "com.apple.compilers.llvm.clang.1_0")
+# set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++0x")
+# set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++")
+
+# get_cmake_property(_variableNames VARIABLES)
+# foreach (_variableName ${_variableNames})
+#     message(STATUS "${_variableName}=${${_variableName}}")
+# endforeach()
