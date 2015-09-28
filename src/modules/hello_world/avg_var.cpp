@@ -2,7 +2,7 @@
  *
  * @file linear.cpp
  *
- * @brief average variance functions
+ * @brief average population variance functions
  *
  *//* ----------------------------------------------------------------------- */
 
@@ -39,8 +39,10 @@ class AvgVarTransitionState {
     }
 
     /**
-     * @brief Merge with another State object by copying the intra-iteration
-     *     fields
+     * @brief Merge with another State object
+     *
+     * We update mean and variance in a online fashion
+     * to avoid intermediate large sum. 
      */
     template <class OtherHandle>
     AvgVarTransitionState &operator+=(
@@ -49,33 +51,51 @@ class AvgVarTransitionState {
         if (mStorage.size() != inOtherState.mStorage.size())
             throw std::logic_error("Internal error: Incompatible transition "
                                    "states");
+        double avg_ = inOtherState.avg;
+        double var_ = inOtherState.var;
+        uint16_t numRows_ = static_cast<uint16_t>(inOtherState.numRows);
+        double totalNumRows = static_cast<double>(numRows + numRows_);
+        double p = static_cast<double>(numRows) / totalNumRows;
+        double p_ = static_cast<double>(numRows_) / totalNumRows;
+        double totalAvg = avg * p + avg_ * p_;
+        double a = avg - totalAvg;
+        double a_ = avg_ - totalAvg;
 
-        numRows += inOtherState.numRows;
-        sum += inOtherState.sum;
+        numRows += numRows_;
+        var = p * var + p_ * var_ + p * a * a + p_ * a_ * a_;
+        avg = totalAvg;
         return *this;
     }
 
   private:
     void rebind() {
-        sum.rebind(&mStorage[0]);
-        numRows.rebind(&mStorage[1]);
+        avg.rebind(&mStorage[0]);
+        var.rebind(&mStorage[1]);
+        numRows.rebind(&mStorage[2]);
     }
 
     Handle mStorage;
 
   public:
-    typename HandleTraits<Handle>::ReferenceToDouble sum;
+    typename HandleTraits<Handle>::ReferenceToDouble avg;
+    typename HandleTraits<Handle>::ReferenceToDouble var;
     typename HandleTraits<Handle>::ReferenceToUInt64 numRows;
 };
 
 
 AnyType
 avg_var_transition::run(AnyType& args) {
-	// state[0]: sum
-	// state[1]: nElems
+    // get current state value 
     AvgVarTransitionState<MutableArrayHandle<double> > state = args[0];
+    // get current row value
     double x = args[1].getAs<double>();
-    state.sum += x;
+    double d_ = (x - state.avg);
+    // online update mean
+    state.avg += d_ / static_cast<double>(state.numRows + 1);
+    double d = (x - state.avg);
+    double a = static_cast<double>(state.numRows) / static_cast<double>(state.numRows + 1);
+    // online update variance
+    state.var = state.var * a + d_ * d / static_cast<double>(state.numRows + 1);
     state.numRows ++;
     return state;
 }
@@ -100,13 +120,10 @@ avg_var_final::run(AnyType& args) {
     if (state.numRows == 0)
         return Null();
 
-    state.sum = state.sum / state.numRows;
     return state;
 }
 // -----------------------------------------------------------------------
 
-} // namespace regress
-
+} // namespace hello_world
 } // namespace modules
-
 } // namespace madlib
