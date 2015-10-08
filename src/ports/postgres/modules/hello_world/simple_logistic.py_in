@@ -10,8 +10,6 @@
 @brief Logistic Regression: Driver functions
 """
 import plpy
-import logging
-import pprint
 from utilities.group_control import GroupIterationController
 from utilities.utilities import unique_string
 from utilities.validate_args import table_exists
@@ -27,6 +25,8 @@ from collections import defaultdict
 
 version_wrapper = __mad_version()
 
+import logging
+import pprint
 logging.basicConfig(filename='/tmp/plpy.log', level=logging.DEBUG)
 
 # ========================================================================
