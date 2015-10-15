@@ -1,0 +1,92 @@
+#coding=utf-8
+
+"""
+@file pathing.py_in
+
+@brief Pathing functions
+
+@namespace utilities
+"""
+import plpy
+import shlex
+import string
+from utilities import unique_string
+from validate_args import __explicit_bool_to_text
+from utilities import _string_to_array
+from utilities import _string_to_array_with_quotes
+from utilities import extract_keyvalue_params
+from validate_args import input_tbl_valid
+from validate_args import output_tbl_valid
+from validate_args import cols_in_tbl_valid
+from utilities import add_postfix
+# ------------------------------------------------------------------------
+
+
+def pathing(schema_madlib, source_table, output_table, partition_expr,
+            order_expr, pattern_expr, symbol_expr, result_fun):
+    """
+        Perform regular pattern matching over a sequence of rows.
+
+        Args:
+        @param schema_madlib: str, Name of the MADlib schema
+        @param source_table: str, Name of the input table/view
+        @param output_table: str, Name of the table to store result
+        @param parition_expr: str, Expression to partition (group) the input data
+        @param order_expr: str, Expression to order the input data
+        @param pattern_expr: str, Expression to define the pattern to search for
+        @param symbol_expr: str, Definition for each symbol, comma-separated list
+        @param result_fun: str, List of the result functions/aggregates to apply on matched patterns
+
+    """
+
+    symbol_definitions = """
+            when starttime::time >= '0:00:00'::time and starttime::time < '9:30:00'::time then 'BEFORE'
+            when starttime::time >=  '9:30:00'::time and starttime::time < '16:00:00'::time then 'MARKET'
+            when starttime::time >= '16:00:00'::time and starttime::time < '16:30:00'::time then 'CLOSE'
+            when starttime::time >= '16:30:00'::time and starttime::time < '24:00:00'::time then 'AFTER'
+        """
+    input_view = unique_string()
+    group_by_cols = partition_expr
+    sql = """
+        WITH {input_view} as (
+            select *
+                case
+                    {symbol_defintions}
+                end as symbol
+            FROM {source_table}
+        )
+        SELECT *
+        FROM (
+            SELECT
+                {result_fun},
+                {group_by_cols},
+                array_agg(symbol order by {order_expr}) as symbol_path
+            FROM {input_view}
+            GROUP BY {group_by_cols}
+        ) q
+        WHERE array_to_string(symbol_path, '.') ~* {pattern_match}
+    """.format(**locals())
+
+
+def _get_symbol_definitions(symbol_expr):
+    """ Parse a symbol definition string and return a dictionary of the definitions
+
+        symbol_expr: A comma-separated string containing symbol definitions of the form:
+            <symbol> := <symbol_definition>
+        Example:
+            symbol_expr = ('BEFORE:=starttime >= \'0:00:00\'::time and '
+                            'starttime < \'9:30:00\', '
+                            'MARKET:=starttime >= \'9:30:00\'::time and '
+                            'starttime < \'16:00:00\'::time')
+
+    """
+    symbol_expr_parser = shlex.shlex(symbol_expr)
+    symbol_expr_parser.wordchars = [i for i in string.printable
+                                    if i not in (symbol_expr_parser.quotes + ",")]
+    symbol_expr_parser.whitespace = ','
+    symbol_splits = list(symbol_expr_parser)
+    symbol_definitions = {}
+    for each_sym in symbol_splits:
+        each_sym_splits = each_sym.split(":=")
+        symbol_definitions[each_sym_splits[0]] = each_sym_splits[1]
+    return symbol_definitions
