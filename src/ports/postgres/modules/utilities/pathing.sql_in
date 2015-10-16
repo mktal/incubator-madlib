@@ -72,10 +72,19 @@ path(
 
     <dt>pattern</dt>
     <dd>VARCHAR. The PATTERN clause defines the pattern that path searches for.
-        You express the PATTERN using symbols and operators. For example, to match every instance
-        in which a row that matches symbol A is followed directly by a row that matches symbol B,
-        write "A.B" (the dot operator means "is followed by"). We support all regular expressions
-        operators supported by PostgreSQL, with the only addition being the '.' operator.
+        You express the PATTERN using symbols and operators. Symbols defined using more
+        than 1 characters need to be wrapped in parentheses '()'.
+        The following pattern-matching metacharacters are supported:
+        <ul>
+            <li>| denotes alternation (either of two alternatives). </li>
+            <li>? denotes repetition of the previous item zero or one time. </li>
+            <li>* denotes repetition of the previous item zero or more times. </li>
+            <li>+ denotes repetition of the previous item one or more times. </li>
+            <li>{m} denotes repetition of the previous item exactly m times. </li>
+            <li>{m,} denotes repetition of the previous item m or more times. </li>
+            <li>{m,n} denotes repetition of the previous item at least m and not more than n times. </li>
+            <li>Parentheses () can be used to group items into a single logical item.</li>
+        </ul>
     </dd>
 
     <dt>symbol</dt>
