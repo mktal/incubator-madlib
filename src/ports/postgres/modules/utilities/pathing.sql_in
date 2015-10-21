@@ -179,8 +179,8 @@ CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.pathing(
     output_table        varchar,
     partition_expr      varchar,
     order_expr          varchar,
-    pattern_expr        varchar,
-    symbol_def          varchar,
+    pattern_regex       varchar,
+    symbol_expr         varchar,
     result_fun          varchar
 ) RETURNS void AS $$
 PythonFunction(utilities, pathing, pathing)

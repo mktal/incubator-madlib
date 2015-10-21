@@ -10,7 +10,7 @@
 import shlex
 import string
 from utilities import unique_string
-# import plpy
+import plpy
 # from validate_args import __explicit_bool_to_text
 # from utilities import _string_to_array
 # from utilities import _string_to_array_with_quotes
@@ -23,7 +23,7 @@ from utilities import unique_string
 
 
 def pathing(schema_madlib, source_table, output_table, partition_expr,
-            order_expr, pattern_regex, symbol_expr, result_fun):
+            order_expr, pattern_regex, symbol_expr, result_fun, **kwargs):
     """
         Perform regular pattern matching over a sequence of rows.
 
@@ -38,14 +38,15 @@ def pathing(schema_madlib, source_table, output_table, partition_expr,
         @param result_fun: str, List of the result functions/aggregates to apply on matched patterns
 
     """
-    symbol_definitions = _get_symbol_definitions(symbol_expr)
+    symbol_str = _build_symbol_str(symbol_expr)
     input_view = unique_string()
     group_by_cols = partition_expr
     sql = """
+        CREATE TABLE out as
         WITH {input_view} as (
-            select *
+            select *,
                 case
-                    {symbol_defintions}
+                    {symbol_str}
                 end as symbol
             FROM {source_table}
         )
@@ -58,12 +59,13 @@ def pathing(schema_madlib, source_table, output_table, partition_expr,
             FROM {input_view}
             GROUP BY {group_by_cols}
         ) q
-        WHERE array_to_string(symbol_path, '.') ~* {pattern_regex}
+        WHERE array_to_string(symbol_path, '.') ~* '{pattern_regex}'
     """.format(**locals())
+    plpy.execute(sql)
 # ------------------------------------------------------------------------------
 
 
-def _get_symbol_definitions(symbol_expr):
+def _build_symbol_str(symbol_expr):
     """ Parse a symbol definition string and return a dictionary of the definitions
 
         symbol_expr: A comma-separated string containing symbol definitions of the form:
@@ -71,7 +73,7 @@ def _get_symbol_definitions(symbol_expr):
         Example:
             symbol_expr = ('BEFORE:=starttime >= \'0:00:00\'::time and '
                             'starttime < \'9:30:00\', '
-                            'MARKET:=starttime >= \'9:30:00\'::time and '
+                           'MARKET:=starttime >= \'9:30:00\'::time and '
                             'starttime < \'16:00:00\'::time')
 
     """
@@ -84,25 +86,6 @@ def _get_symbol_definitions(symbol_expr):
     for each_sym in symbol_splits:
         each_sym_splits = each_sym.split(":=")
         symbol_definitions[each_sym_splits[0].strip()] = each_sym_splits[1].strip()
-    return symbol_definitions
+    return '\n'.join("when {1} then '{0}'::text".format(key, val)
+                     for key, val in symbol_definitions.items())
 # ----------------------------------------------------------------------
-
-
-
-import unittest
-
-
-class PathingTestCase(unittest.TestCase):
-    def setUp(self):
-        self.symbol_expr = """
-       BEFORE:=starttime::time >= '0:00:00'::time and starttime::time < '9:30:00'::time,
-       MARKET:=starttime::time >=  '9:30:00'::time and starttime::time < '16:00:00'::time,
-       CLOSE:=starttime::time >= '16:00:00'::time and starttime::time < '16:30:00'::time,
-       AFTER:=starttime::time >= '16:30:00'::time and starttime::time < '24:00:00'::time
-    """
-
-    def test_dummy(self):
-        print _get_symbol_definitions(self.symbol_expr)
-
-if __name__ == '__main__':
-    unittest.main()
