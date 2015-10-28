@@ -21,7 +21,7 @@ m4_include(`SQLCommon.m4')
 </ul>
 </div>
 
-@brief Pathing functions in MADlib
+@brief Path functions
 details The goal of the MADlib path function is to perform regular pattern
 matching over a sequence of rows, and to extract useful information about the
 matches.  The useful information could be a simple count of matches or
@@ -174,7 +174,7 @@ FROM sessiontable
 -------------------------------------------------------------------------
 
 
-CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.pathing(
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.path(
     source_table        varchar,
     output_table        varchar,
     partition_expr      varchar,
@@ -183,6 +183,6 @@ CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.pathing(
     symbol_expr         varchar,
     result_fun          varchar
 ) RETURNS void AS $$
-PythonFunction(utilities, pathing, pathing)
+PythonFunction(utilities, path, path)
 $$ LANGUAGE plpythonu
 m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA', `');
