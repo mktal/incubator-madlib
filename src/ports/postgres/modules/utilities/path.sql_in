@@ -186,3 +186,22 @@ CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.path(
 PythonFunction(utilities, path, path)
 $$ LANGUAGE plpythonu
 m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA', `');
+
+-------------------------------------------------------------------------
+-- To Implement: overloaded functions for default arguments ---------------
+
+
+-------------------------------------------------------------------------
+-- To Implement -----------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.path_help(message TEXT)
+RETURNS text AS $$
+    return ""
+$$ language plpythonu
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL DATA', `');
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.path_help()
+RETURNS text AS $$
+    SELECT MADLIB_SCHEMA.path_help('');
+$$ language SQL
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL DATA', `');
