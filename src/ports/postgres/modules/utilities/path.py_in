@@ -13,9 +13,8 @@ import plpy
 # from utilities import _string_to_array
 # from utilities import _string_to_array_with_quotes
 # from utilities import extract_keyvalue_params
-# from validate_args import input_tbl_valid
-# from validate_args import output_tbl_valid
-# from validate_args import cols_in_tbl_valid
+from validate_args import input_tbl_valid
+from validate_args import output_tbl_valid
 # from utilities import add_postfix
 # ------------------------------------------------------------------------
 
@@ -36,11 +35,19 @@ def path(schema_madlib, source_table, output_table, partition_expr,
         @param result_fun: str, List of the result functions/aggregates to apply on matched patterns
 
     """
+    _validate(source_table, output_table)
     symbol_str = _build_symbol_str(symbol_expr)
     input_view = unique_string()
-    group_by_cols = partition_expr
+    if partition_expr:
+        group_by_str = "GROUP BY " + partition_expr
+    else:
+        group_by_str = ""
+    if order_expr:
+        order_expr_str = "ORDER BY " + order_expr
+    else:
+        order_expr = ""
     sql = """
-        CREATE TABLE out as
+        CREATE TABLE {output_table} as
         WITH {input_view} as (
             select *,
                 case
@@ -53,14 +60,21 @@ def path(schema_madlib, source_table, output_table, partition_expr,
             SELECT
                 {result_fun},
                 {group_by_cols},
-                array_agg(symbol order by {order_expr}) as symbol_path
+                array_agg(symbol {order_expr_str}) as symbol_path
             FROM {input_view}
-            GROUP BY {group_by_cols}
+            {group_by_str}
         ) q
         WHERE array_to_string(symbol_path, '.') ~* '{pattern_regex}'
     """.format(**locals())
     plpy.execute(sql)
 # ------------------------------------------------------------------------------
+
+
+def _validate(source_table, output_table):
+    input_tbl_valid(source_table, 'Path')
+    output_tbl_valid(output_table, 'Path')
+# ----------------------------------------------------------------------
+
 
 
 def _build_symbol_str(symbol_expr):
