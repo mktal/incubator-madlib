@@ -52,7 +52,7 @@ def path(schema_madlib, source_table, output_table, partition_expr,
         FROM {input_view}
         GROUP BY {partition_expr}
         HAVING
-            array_to_string(array_agg(symbol ORDER BY order_expr), '') ~* '^{pattern_regex}'
+            array_to_string(array_agg(symbol ORDER BY {order_expr}), '') ~* '^{pattern_regex}'
     """.format(**locals())
     plpy.execute(sql)
 # ------------------------------------------------------------------------------
