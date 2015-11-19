@@ -36,16 +36,7 @@ def path(schema_madlib, source_table, output_table, partition_expr,
     _validate(source_table, output_table, partition_expr, order_expr,
               pattern_regex, symbol_str, result_fun)
     input_view = unique_string()
-    if partition_expr:
-        group_by_str = "GROUP BY " + partition_expr
-        group_by_cols = partition_expr + ", "
-    else:
-        group_by_str = ""
-        group_by_cols = ""
-    if order_expr:
-        order_expr_str = "ORDER BY " + order_expr
-    else:
-        order_expr = ""
+
     sql = """
         CREATE TABLE {output_table} as
         WITH {input_view} as (
@@ -55,16 +46,13 @@ def path(schema_madlib, source_table, output_table, partition_expr,
                 end as symbol
             FROM {source_table}
         )
-        SELECT *
-        FROM (
-            SELECT
-                {result_fun},
-                {group_by_cols}
-                array_agg(symbol {order_expr_str}) as symbol_path
-            FROM {input_view}
-            {group_by_str}
-        ) q
-        WHERE array_to_string(symbol_path, '.') ~* '{pattern_regex}'
+        SELECT
+            {partition_expr},
+            {result_fun}
+        FROM {input_view}
+        GROUP BY {partition_expr}
+        HAVING
+            array_to_string(array_agg(symbol ORDER BY order_expr), '') ~* '^{pattern_regex}'
     """.format(**locals())
     plpy.execute(sql)
 # ------------------------------------------------------------------------------
@@ -106,3 +94,34 @@ def _build_symbol_str(symbol_expr):
     return '\n'.join("WHEN {1} THEN '{0}'::text".format(key, val)
                      for key, val in symbol_definitions.items())
 # ----------------------------------------------------------------------
+
+
+def path_help_message(schema_madlib, message, **kwargs):
+    """ Help message for path function
+    """
+    help_string = """
+------------------------------------------------------------
+                        SUMMARY
+------------------------------------------------------------
+Functionality: Path
+
+The goal of the MADlib path function is to perform regular pattern
+matching over a sequence of rows, and to extract useful information about the
+matches.  The useful information could be a simple count of matches or
+something more involved like aggregation.
+
+------------------------------------------------------------
+                        USAGE
+------------------------------------------------------------
+SELECT {schema_madlib}.path(
+    'source_table',    -- Name of the table
+    'output_table',    -- Table name to store the path results
+    'partition_expr',  -- Partition expression to group the data table
+    'order_expr',      -- Order expression to sort the tuples of the data table
+    'pattern_def',     -- Definition of the path pattern to search for
+    'symbol_def',      -- Definition of various symbols used in the pattern definition
+    'result_fun',      -- Aggregate/window functions to be applied on the matched paths
+);
+"""
+    return help_string.format(schema_madlib=schema_madlib)
+# ------------------------------------------------------------

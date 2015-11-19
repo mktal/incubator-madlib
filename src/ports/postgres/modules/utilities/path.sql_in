@@ -22,7 +22,7 @@ m4_include(`SQLCommon.m4')
 </div>
 
 @brief Path functions
-details The goal of the MADlib path function is to perform regular pattern
+@details The goal of the MADlib path function is to perform regular pattern
 matching over a sequence of rows, and to extract useful information about the
 matches.  The useful information could be a simple count of matches or
 something more involved like aggregation.
@@ -194,14 +194,14 @@ m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA', `');
 -------------------------------------------------------------------------
 -- To Implement -----------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.path_help(message TEXT)
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.path(message TEXT)
 RETURNS text AS $$
-    return ""
+PythonFunction(utilities, path, path_help_message)
 $$ language plpythonu
 m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL DATA', `');
 
-CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.path_help()
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.path()
 RETURNS text AS $$
-    SELECT MADLIB_SCHEMA.path_help('');
+    SELECT MADLIB_SCHEMA.path('');
 $$ language SQL
 m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL DATA', `');
