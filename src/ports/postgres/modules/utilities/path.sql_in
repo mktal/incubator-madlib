@@ -198,7 +198,7 @@ CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.path(message TEXT)
 RETURNS text AS $$
 PythonFunction(utilities, path, path_help_message)
 $$ language plpythonu
-m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL DATA', `');
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL', `');
 
 CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.path()
 RETURNS text AS $$
