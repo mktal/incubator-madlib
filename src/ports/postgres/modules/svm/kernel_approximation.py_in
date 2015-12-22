@@ -9,6 +9,249 @@ from utilities.utilities import num_features
 from math import sqrt
 from math import pi
 
+from itertools import repeat
+from itertools import chain
+
+# TODO: remove it
+import numpy as np
+
+
+def _create_mat(X, tbl_name, temporary=False, row='id', val='val'):
+    header = [row, val]
+    header_str = ','.join(header)
+    header_with_type_str = ','.join([row + ' integer',
+                                    val + ' float[]'])
+    temp_str = '' if not temporary else 'TEMP'
+    plpy.execute("""
+                 DROP TABLE IF EXISTS {tbl_name};
+                 CREATE {temp_str} TABLE {tbl_name} ({header})
+                 """.format(tbl_name=tbl_name,
+                            temp_str=temp_str,
+                            header=header_with_type_str))
+    data = []
+    for i, r in enumerate(X, 1):
+        data.append("({id}, '{{{val}}}')"
+                    .format(id=i, val=','.join(map(str, r))))
+    data = ','.join(data)
+    plpy.execute("""
+                 INSERT INTO {tbl_name}({header}) VALUES
+                 {data}""".format(data=data,
+                                  header=header_str,
+                                  tbl_name=tbl_name))
+    return tbl_name
+
+
+class PolyKernel(object):
+    """docstring for PolyKernel"""
+    def __init__(self, degree=2, coef0=1, n_components=100,
+                 random_state=1, random_weights=None):
+        self.kernel_func = 'poly'
+        self.degree = degree
+        self.coef0 = coef0
+        self.n_components = n_components
+        self.random_state = random_state
+        self.rd_weights = random_weights
+        if self.rd_weights is not None:
+            nf = num_features(self.rd_weights, 'val')
+            assert(self.n_components*self.degree==nf)
+
+    def saveAsText(self):
+        return ','.join([str(self.degree), str(self.coef0),
+                        str(self.n_components), self.rd_weights])
+
+    @classmethod
+    def loadFromText(cls, text):
+        degree, coef0, n_components, rd_weights = text.split(',')
+        return cls(degree=int(degree),
+                   coef0=float(coef0),
+                   n_components=int(n_components),
+                   random_weights=rd_weights)
+
+    @property
+    def kernel_params(self):
+        return ('degree={degree}, coef0={coef0}, n_components={n_components}'
+                .format(degree=self.degree, coef0=self.coef0,
+                        n_components=self.n_components))
+
+    def fit(self, schema_madlib, n_features, kernel_params=''):
+
+        params_default = {
+            'degree': self.degree,
+            'n_components': self.n_components,
+            'coef0': self.coef0}
+
+        params_types = {
+            'degree': int,
+            'n_components': int,
+            'coef0': float}
+
+        params_vals = extract_keyvalue_params(kernel_params,
+                                              params_types,
+                                              params_default)
+        self.degree = params_vals['degree']
+        self.coef0 = params_vals['coef0']
+        self.n_components = params_vals['n_components']
+
+        rd_state = np.random.RandomState(self.random_state)
+        # uniform in [-1, 1]
+        rd_weights_ = rd_state.choice([-1, 1], (n_features,
+                              self.degree*self.n_components))
+        self.rd_weights = _create_mat(rd_weights_,
+                                      unique_string(desp='random_weights'))
+
+    def transform(self, schema_madlib, source_table, independent_varname,
+                  dependent_varname=None, grouping_col=None, id_col=None,
+                  transformed_name='poly_transformed'):
+        if not self.rd_weights:
+            return self
+
+        self.original_table = dict(source_table=source_table,
+                                   independent_varname=independent_varname,
+                                   dependent_varname=dependent_varname)
+
+        grouping_col = ("NULL::integer as grouping_col"
+                        if not grouping_col
+                        else "{0}").format(grouping_col)
+
+        dependent_varname = ("NULL::integer"
+                             if not dependent_varname
+                             else "{0}").format(dependent_varname)
+
+        id_col = ("NULL::integer as id_col"
+                  if not id_col
+                  else "{0}").format(id_col)
+
+        # copy data to the temporary table with id column
+        # id_col is different from index_col
+        # id_col is unique and, if any, is from the original table
+        # index_col is generated randomly
+        # needs to be sequential for madlib.matrix_mult to work
+        source_with_id = unique_string(desp='source_copied')
+        features_col = unique_string(desp='features_col')
+        target_col = unique_string(desp='target_col')
+        index_col = unique_string(desp='index_col')
+        run_sql = """
+            select setseed(0.5);
+            drop table if exists {source_with_id};
+            create temp table {source_with_id} as
+                select
+                    row_number() over (order by random()) as {index_col},
+                    {dependent_varname} as {target_col},
+                    {independent_varname} as {features_col},
+                    {id_col},
+                    {grouping_col}
+                from {source_table}
+        """.format(source_table=source_table,
+                   source_with_id=source_with_id,
+                   id_col=id_col,
+                   index_col=index_col,
+                   dependent_varname=dependent_varname,
+                   independent_varname=independent_varname,
+                   grouping_col=grouping_col,
+                   target_col=target_col, features_col=features_col)
+        plpy.execute(run_sql)
+        source_table = source_with_id
+        dependent_varname = target_col
+        independent_varname = features_col
+
+        temp_mult = unique_string(desp='temp_mult')
+        # X = X * weights
+        run_sql = """
+            drop table if exists {temp_mult};
+            select {schema_madlib}.matrix_mult(
+                          '{source_table}',
+                          'row={index_col}, val={independent_varname}',
+                          '{rd_weights}',
+                          'row=id, val=val',
+                          '{temp_mult}',
+                          'row={index_col}, val={independent_varname}');
+        """.format(temp_mult=temp_mult,
+                   schema_madlib=schema_madlib,
+                   source_table=source_table,
+                   rd_weights=self.rd_weights,
+                   index_col=index_col,
+                   independent_varname=independent_varname)
+        plpy.execute(run_sql)
+
+        temp_add = unique_string(desp='temp_add')
+        addon = sqrt(self.coef0)
+        run_sql = """
+            drop table if exists {temp_add};
+            create temp table {temp_add} as
+                select
+                    {index_col},
+                    {schema_madlib}.array_scalar_add(
+                            {independent_varname}::float[],
+                            {addon}::float) as {independent_varname}
+                from {temp_mult}
+        """.format(index_col=index_col,
+                   schema_madlib=schema_madlib,
+                   independent_varname=independent_varname,
+                   temp_add=temp_add,
+                   temp_mult=temp_mult,
+                   addon=addon)
+        plpy.execute(run_sql)
+
+        r, D = self.degree, self.n_components
+        _band_matrix = np.array(list(chain.from_iterable(
+                        repeat(x,r) for x in np.eye(D)))).reshape(r*D,D)
+        _band_matrix = _create_mat(_band_matrix,
+                                   unique_string(desp='band_matrix'),
+                                   temporary=True)
+
+        # X = X * band_matrix
+        run_sql = """
+            drop table if exists {temp_mult};
+            select {schema_madlib}.matrix_mult(
+                          '{temp_add}',
+                          'row={index_col}, val={independent_varname}',
+                          '{band_matrix}',
+                          'row=id, val=val',
+                          '{temp_mult}',
+                          'row={index_col}, val={independent_varname}');
+        """.format(temp_mult=temp_mult,
+                   schema_madlib=schema_madlib,
+                   temp_add=temp_add,
+                   band_matrix=_band_matrix,
+                   index_col=index_col,
+                   independent_varname=independent_varname)
+        plpy.execute(run_sql)
+
+        transformed = unique_string(desp=transformed_name)
+
+        # X = multiplier * X
+        multiplier = 1 / np.sqrt(self.n_components)
+        run_sql = """
+            drop table if exists {transformed};
+            create temp table {transformed} as
+                select
+                    {index_col},
+                    {schema_madlib}.array_scalar_mult(
+                        q.{independent_varname}::float[],
+                        {multiplier}::float) as {independent_varname},
+                    {dependent_varname},
+                    {id_col},
+                    {grouping_col}
+                from {temp_mult} q join {source_table} s using ({index_col})
+        """.format(index_col=index_col,
+                   id_col=id_col,
+                   dependent_varname=dependent_varname,
+                   schema_madlib=schema_madlib,
+                   independent_varname=independent_varname,
+                   multiplier=multiplier,
+                   grouping_col=grouping_col,
+                   transformed=transformed,
+                   source_table=source_table,
+                   temp_mult=temp_mult)
+        plpy.execute(run_sql)
+        # clear table generated from matrix mult
+        plpy.execute("drop table {0};".format(temp_mult))
+        self.transformed_table = dict(index_col=index_col,
+                                      source_table=transformed,
+                                      dependent_varname=dependent_varname,
+                                      independent_varname=independent_varname)
+        return self
+
 
 class GaussianKernelBase(object):
 
