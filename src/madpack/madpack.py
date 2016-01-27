@@ -62,6 +62,7 @@ con_args = {}       # DB connection arguments
 verbose = None      # Verbose flag
 keeplogs = None
 tmpdir = None
+is_hawq2 = False
 
 
 def _make_dir(dir):
@@ -506,17 +507,7 @@ def _db_install(schema, dbrev, testcase):
     # CASE #2: Target schema exists w/o MADlib objects:
     # For HAWQ, after the DB initialization, there is no
     # madlib.migrationhistory table, thus madlib_exists is False
-    #
     elif schema_writable and not madlib_exists:
-        # work-around before UDT is available in HAWQ
-        if portid == 'hawq':
-            _info("> Schema %s exists w/ pre-built MADlib objects" % schema.upper(), verbose)
-            # Rolling back in HAWQ will drop catalog functions. For exception, we
-            # simply push the exception to the caller to terminate the install
-            _db_create_objects(schema, None, testcase=testcase, hawq_fresh=True)
-        else:
-            _info("> Schema %s exists w/o MADlib objects" % schema.upper(), verbose)
-
             # Create MADlib objects
             try:
                 _db_create_objects(schema, None, testcase=testcase)
@@ -529,7 +520,7 @@ def _db_install(schema, dbrev, testcase):
     # CASE #3: Target schema does not exist:
     #
     elif not schema_writable:
-        if portid == 'hawq':
+        if portid == 'hawq' and not is_hawq2:
             # Rolling back in HAWQ will drop catalog functions. For exception, we
             # simply push the exception to the caller to terminate the install
             raise Exception("MADLIB schema is required for HAWQ")
@@ -566,7 +557,7 @@ def _db_upgrade(schema, dbrev):
     _info("\tDetecting dependencies...", True)
 
     _info("\tLoading change list...", True)
-    ch = ChangeHandler(schema, portid, con_args, maddir, dbrev)
+    ch = ChangeHandler(schema, portid, con_args, maddir, dbrev, is_hawq2)
 
     _info("\tDetecting table dependencies...", True)
     td = TableDependency(schema, portid, con_args)
@@ -658,10 +649,6 @@ def _db_upgrade(schema, dbrev):
     else:
         _info("No dependency problem found, continuing to upgrade ...", True)
 
-        # DEPRECATED ------------------------------------------------------------
-        # if vd.has_dependency():
-        #     vd.save_and_drop()
-
     _info("\tReading existing UDAs/UDTs...", False)
     sc = ScriptCleaner(schema, portid, con_args, ch)
     _info("Script Cleaner initialized ...", False)
@@ -675,11 +662,7 @@ def _db_upgrade(schema, dbrev):
     ch.drop_traininginfo_4dt()  # used types: oid, text, integer, float
     _db_create_objects(schema, None, True, sc)
 
-    # if vd.has_dependency():
-    #     vd.restore()
-
     _info("MADlib %s upgraded successfully in %s schema." % (rev, schema.upper()), True)
-
 # ------------------------------------------------------------------------------
 
 
@@ -716,12 +699,14 @@ def _db_create_schema(schema):
 
 
 def _db_create_objects(schema, old_schema, upgrade=False, sc=None, testcase="",
-                       hawq_debug=False, hawq_fresh=False):
+                       hawq_debug=False):
     """
     Create MADlib DB objects in the schema
         @param schema Name of the target schema
         @param sc ScriptCleaner object
         @param testcase Command-line args for modules to install
+
+        @param hawq_debug
     """
     if not upgrade and not hawq_debug:
         # Create MigrationHistory table
@@ -820,7 +805,7 @@ def _db_create_objects(schema, old_schema, upgrade=False, sc=None, testcase="",
         # Execute all SQL files for the module
         for sqlfile in sql_files:
             algoname = os.path.basename(sqlfile).split('.')[0]
-            if portid == 'hawq' and algoname in ('svec'):
+            if portid == 'hawq' and not is_hawq2 and algoname in ('svec'):
                 continue
 
             # run only algo specified
@@ -848,7 +833,6 @@ def _db_rollback(drop_schema, keep_schema):
         @param drop_schema name of the schema to drop
         @param keep_schema name of the schema to rename and keep
     """
-
     _info("Rolling back the installation...", True)
 
     if not drop_schema:
@@ -920,7 +904,7 @@ def main(argv):
   This will install MADlib objects into a Greenplum database called TESTDB
   running on server MDW:5432. Installer will try to login as GPADMIN
   and will prompt for password. The target schema will be MADLIB.
-""")
+  """)
 
     help_msg = """One of the following options:
                   install        : run sql scripts to load into DB
@@ -968,9 +952,7 @@ def main(argv):
     parser.add_argument('-t', '--testcase', dest='testcase', default="",
                         help="Module names to test, comma separated. Effective only for install-check.")
 
-    ##
     # Get the arguments
-    ##
     args = parser.parse_args()
     global verbose
     verbose = args.verbose
@@ -985,19 +967,17 @@ def main(argv):
         tmpdir = e.filename
         _error("cannot create temporary directory: '%s'." % tmpdir, True)
 
-    ##
     # Parse SCHEMA
-    ##
     if len(args.schema[0]) > 1:
         schema = args.schema[0].lower()
     else:
         schema = args.schema.lower()
 
-    ##
     # Parse DB Platform (== PortID) and compare with Ports.yml
-    ##
     global portid
     global dbver
+    global is_hawq2
+
     if args.platform:
         try:
             # Get the DB platform name == DB port id
@@ -1009,9 +989,7 @@ def main(argv):
     else:
         portid = None
 
-    ##
     # Parse CONNSTR (only if PLATFORM and DBAPI2 are defined)
-    ##
     if portid:
         connStr = "" if args.connstr is None else args.connstr[0]
         (c_user, c_pass, c_host, c_port, c_db) = parseConnectionStr(connStr)
@@ -1035,12 +1013,11 @@ def main(argv):
         con_args['database'] = c_db
         con_args['user'] = c_user
 
-        ##
         # Try connecting to the database
-        ##
         _info("Testing database connection...", verbose)
 
         try:
+            # check for password only if required
             _run_sql_query("SELECT 1", False)
         except EnvironmentError:
             con_args['password'] = getpass.getpass("Password for user %s: " % c_user)
@@ -1048,16 +1025,21 @@ def main(argv):
         except:
             _error('Failed to connect to database', True)
 
-        # Currently Madlib can only be installed in 'madlib' schema in HAWQ
-        if portid == 'hawq' and schema.lower() != 'madlib':
-            _error("*** Installation is currently restricted to 'madlib' schema ***", True)
+        # Get DB version
+        dbver = _get_dbver()
+        portdir = os.path.join(maddir, "ports", portid)
+        if portid == "hawq" and _get_rev_num(dbver) >= _get_rev_num('2.0'):
+            is_hawq2 = True
+        else:
+            is_hawq2 = False
 
         # Get MADlib version in DB
         dbrev = _get_madlib_dbrev(schema)
 
-        # Get DB version
-        dbver = _get_dbver()
-        portdir = os.path.join(maddir, "ports", portid)
+        # HAWQ < 2.0 has hard-coded schema name 'madlib'
+        if portid == 'hawq' and not is_hawq2 and schema.lower() != 'madlib':
+            _error("*** Installation is currently restricted only to 'madlib' schema ***", True)
+
         supportedVersions = [dirItem for dirItem in os.listdir(portdir)
                              if os.path.isdir(os.path.join(portdir, dirItem)) and
                              re.match("^\d+\.\d+", dirItem)]
@@ -1096,34 +1078,27 @@ def main(argv):
         con_args = None
         dbrev = None
 
-    ##
     # Parse COMMAND argument and compare with Ports.yml
-    ##
-
     # Debugging...
     # print "OS rev: " + str(rev) + " > " + str(_get_rev_num(rev))
     # print "DB rev: " + str(dbrev) + " > " + str(_get_rev_num(dbrev))
 
-    # Make sure we have the necessary paramaters to continue
+    # Make sure we have the necessary parameters to continue
     if args.command[0] != 'version':
         if not portid:
             _error("Missing -p/--platform parameter.", True)
         if not con_args:
             _error("Unknown problem with database connection string: %s" % con_args, True)
 
-    ###
     # COMMAND: version
-    ###
     if args.command[0] == 'version':
         _print_revs(rev, dbrev, con_args, schema)
 
-    ###
     # COMMAND: uninstall/reinstall
-    ###
-    if args.command[0] in ('uninstall',) and portid == 'hawq':
+    if args.command[0] in ('uninstall',) and (portid == 'hawq' and not is_hawq2):
         _error("madpack uninstall is currently not available for HAWQ", True)
 
-    if args.command[0] in ('uninstall', 'reinstall') and portid != 'hawq':
+    if args.command[0] in ('uninstall', 'reinstall') and (portid != 'hawq' or is_hawq2):
         if _get_rev_num(dbrev) == ['0']:
             _info("Nothing to uninstall. No version found in schema %s." % schema.upper(), True)
             return
@@ -1183,9 +1158,7 @@ def main(argv):
         else:
             return
 
-    ###
     # COMMAND: install/reinstall
-    ###
     if args.command[0] in ('install', 'reinstall'):
         # Refresh MADlib version in DB, None for GP/PG
         if args.command[0] == 'reinstall':
@@ -1201,7 +1174,8 @@ def main(argv):
             _info("Current MADlib version already up to date.", True)
             return
         # proceed to create objects if nothing installed in DB or for HAWQ
-        elif dbrev is None or portid == 'hawq' and args.command[0] == 'reinstall':
+        elif (args.command[0] == 'reinstall' and dbrev is None or
+                (portid == 'hawq' and not is_hawq2)):
             pass
         # error and refer to upgrade if OS > DB
         else:
@@ -1269,10 +1243,8 @@ def main(argv):
             _run_sql_query("DROP OWNED BY %s CASCADE;" % (test_user), True)
             _run_sql_query("DROP USER IF EXISTS %s;" % (test_user), True)
         _run_sql_query("CREATE USER %s;" % (test_user), True)
-        # TO DO:
-        # Change ALL to USAGE in the below GRANT command
-        # and fix the failing modules which still write to MADLIB schema.
-        _run_sql_query("GRANT ALL ON SCHEMA %s TO %s;"
+
+        _run_sql_query("GRANT USAGE ON SCHEMA %s TO %s;"
                        % (schema, test_user), True)
 
         # 2) Run test SQLs
@@ -1301,7 +1273,6 @@ def main(argv):
             # Skip if doesn't meet specified modules
             if modset is not None and len(modset) > 0 and module not in modset:
                 continue
-
             _info("> - %s" % module, verbose)
 
             # Make a temp dir for this module (if doesn't exist)
@@ -1339,13 +1310,6 @@ def main(argv):
             for sqlfile in sorted(glob.glob(sql_files), reverse=True):
                 # work-around for HAWQ
                 algoname = os.path.basename(sqlfile).split('.')[0]
-                if portid == 'hawq' and algoname in ():
-                    # Spit the line
-                    print("TEST CASE RESULT|Module: " + module +
-                          "|" + os.path.basename(sqlfile) +
-                          "|SKIP|Time: 0 milliseconds")
-                    continue
-
                 # run only algo specified
                 if module in modset and len(modset[module]) > 0 \
                         and algoname not in modset[module]:
@@ -1393,9 +1357,10 @@ def main(argv):
         _run_sql_query("DROP OWNED BY %s CASCADE;" % (test_user), True)
         _run_sql_query("DROP USER %s;" % (test_user), True)
 
-## # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+# ------------------------------------------------------------------------------
 # Start Here
-## # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# ------------------------------------------------------------------------------
 if __name__ == "__main__":
 
     # Run main
