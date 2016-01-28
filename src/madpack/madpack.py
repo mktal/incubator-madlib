@@ -1175,7 +1175,7 @@ def main(argv):
             return
         # proceed to create objects if nothing installed in DB or for HAWQ
         elif (args.command[0] == 'reinstall' and dbrev is None or
-                (portid == 'hawq' and not is_hawq2)):
+                portid == 'hawq'):
             pass
         # error and refer to upgrade if OS > DB
         else:
