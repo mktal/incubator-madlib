@@ -7,6 +7,7 @@ function(define_hawq_features IN_VERSION OUT_FEATURES)
     # UDTs cannot be defined in HAWQ versions less than 2.0
     if(${IN_PORT_VERSION} VERSION_LESS "2.0")
         list(APPEND ${OUT_FEATURES} __UDT_NOT_ALLOWED__)
+        list(APPEND ${OUT_FEATURES} __UDF_ON_SEGMENT_NOT_ALLOWED__)
     endif(${IN_PORT_VERSION} VERSION_LESS "2.0")
 
     # Pass values to caller

@@ -62,14 +62,14 @@ def compute_kmeanspp_seeding(schema_madlib, rel_args, rel_state, rel_source,
         rel_source=rel_source,
         expr_point=expr_point)
     with iterationCtrl as it:
-        fn_dist_str = m4_ifdef(<!__HAWQ__!>, <!"fn_dist_name"!>, <!"fn_dist"!>)
+        fn_dist_str = m4_ifdef(<!__UDF_ON_SEGMENT_NOT_ALLOWED__!>, <!"fn_dist_name"!>, <!"fn_dist"!>)
         fn_dist_str = plpy.execute("SELECT " + fn_dist_str + " FROM " + rel_args)[0][fn_dist_str]
-        state_str = (m4_ifdef(<!__HAWQ__!>,
+        state_str = (m4_ifdef(<!__UDT_NOT_ALLOWED__!>,
                               <!"""(SELECT {schema_madlib}.array_to_2d($1))"""!>,
                               <! """(SELECT _state FROM {rel_state}
                                   WHERE _iteration = {iteration})"""!>)
                      )
-        closest_column_str = (m4_ifdef(<!__HAWQ__!>,
+        closest_column_str = (m4_ifdef(<!__UDF_ON_SEGMENT_NOT_ALLOWED__!>,
                                        <!"{schema_madlib}.closest_column"!>,
                                        <!"{schema_madlib}._closest_column"!>)
                               )
@@ -96,7 +96,7 @@ def compute_kmeanspp_seeding(schema_madlib, rel_args, rel_state, rel_source,
                                         %(state_str)s
                                         , _src.{expr_point}::FLOAT8[]
                                         , '%(fn_dist)s'
-                                        m4_ifdef(<!__HAWQ__!>, <!!>,
+                                        m4_ifdef(<!__UDF_ON_SEGMENT_NOT_ALLOWED__!>, <!!>,
                                                  <!, '{fn_dist_name}'!>)
                                     )
                                 ).distance)
@@ -147,7 +147,7 @@ def compute_kmeans_random_seeding(schema_madlib, rel_args, rel_state,
         while m > 0:
             it.update("""
                 SELECT
-                    m4_ifdef(<!__HAWQ__!>, <!$1!>, <!_state._state!>) ||
+                    m4_ifdef(<!__UDT_NOT_ALLOWED__!>, <!$1!>, <!_state._state!>) ||
                     {schema_madlib}.matrix_agg(_point::FLOAT8[])
                 FROM (
                         SELECT
@@ -167,7 +167,7 @@ def compute_kmeans_random_seeding(schema_madlib, rel_args, rel_state,
                         ORDER BY random()
                         LIMIT %(m)s
                     ) AS _src
-                    m4_ifdef(<!__HAWQ__!>, <!!>, <!
+                    m4_ifdef(<!__UDT_NOT_ALLOWED__!>, <!!>, <!
                     , {rel_state} AS _state
                 WHERE
                     _state._iteration = {iteration}
@@ -176,7 +176,7 @@ def compute_kmeans_random_seeding(schema_madlib, rel_args, rel_state,
                 !>)
                 """ % ({'m': m}))
             m = it.evaluate("""_args.k - coalesce(array_upper(
-                                    m4_ifdef(<!__HAWQ__!>, <!$1!>,
+                                    m4_ifdef(<!__UDT_NOT_ALLOWED__!>, <!$1!>,
                                              <!_state._state!>), 1), 0)""")
     return iterationCtrl.iteration
 # ------------------------------------------------------------------------------
@@ -204,7 +204,7 @@ def compute_kmeans(schema_madlib, rel_args, rel_state, rel_source,
     fn_dist_name = plpy.execute("SELECT fn_dist_name FROM " +
                                 rel_args)[0]['fn_dist_name']
     # note below that the 'comma' is included in the 2nd argument
-    fn_dist_name_str = m4_ifdef(<!__HAWQ__!>, <!""!>, <!", '{fn_dist_name}'"!>)
+    fn_dist_name_str = m4_ifdef(<!__UDF_ON_SEGMENT_NOT_ALLOWED__!>, <!""!>, <!", '{fn_dist_name}'"!>)
 
     iterationCtrl = IterationControllerComposite(
         rel_args=rel_args,
@@ -218,13 +218,13 @@ def compute_kmeans(schema_madlib, rel_args, rel_state, rel_source,
         agg_centroid=agg_centroid)
     with iterationCtrl as it:
         # Create the initial inter-iteration state of type kmeans_state
-        centroid_str = (m4_ifdef(<!__HAWQ__!>,
+        centroid_str = (m4_ifdef(<!__UDT_NOT_ALLOWED__!>,
                                  <!"""SELECT ({{curr_state}}).centroids"""!>,
                                  <!"""SELECT (_state).centroids
                                       FROM {rel_state} as rel_state
                                       WHERE _iteration = {iteration}"""!>)
                         )
-        old_centroid_str = (m4_ifdef(<!__HAWQ__!>,
+        old_centroid_str = (m4_ifdef(<!__UDT_NOT_ALLOWED__!>,
                                      <!"""SELECT ({{curr_state}}).old_centroid_ids"""!>,
                                      <!"""SELECT (_state).old_centroid_ids
                                           FROM {rel_state} as rel_state
@@ -235,12 +235,12 @@ def compute_kmeans(schema_madlib, rel_args, rel_state, rel_source,
 
         # for HAWQ we get the name of the distance function instead of the
         # original regproc
-        fn_dist_str = m4_ifdef(<!__HAWQ__!>, <!"fn_dist_name"!>, <!"fn_dist"!>)
+        fn_dist_str = m4_ifdef(<!__UDF_ON_SEGMENT_NOT_ALLOWED__!>, <!"fn_dist_name"!>, <!"fn_dist"!>)
 
         fn_dist_str = plpy.execute("SELECT " + fn_dist_str +
                                    " FROM " + rel_args)[0][fn_dist_str]
 
-        closest_column_str = m4_ifdef(<!__HAWQ__!>,
+        closest_column_str = m4_ifdef(<!__UDF_ON_SEGMENT_NOT_ALLOWED__!>,
                                       <!"{schema_madlib}.closest_column"!>,
                                       <!"{schema_madlib}._closest_column"!>)
         curr_assignment = closest_column_str + """(
@@ -251,7 +251,7 @@ def compute_kmeans(schema_madlib, rel_args, rel_state, rel_source,
                                 )
                            """ % (centroid_str, fn_dist_str, fn_dist_name_str)
 
-        prev_centroid_str = (m4_ifdef(<!__HAWQ__!>,
+        prev_centroid_str = (m4_ifdef(<!__UDT_NOT_ALLOWED__!>,
                                       <!"""SELECT ({{old_state}}).centroids"""!>,
                                       <! """SELECT (_state).centroids
                                             FROM {rel_state} as rel_state
@@ -276,7 +276,7 @@ def compute_kmeans(schema_madlib, rel_args, rel_state, rel_source,
             FROM {rel_args} AS _args
             """)
         while it.test("""{iteration} < _args.max_num_iterations AND
-                         (m4_ifdef(<!__HAWQ__!>,
+                         (m4_ifdef(<!__UDT_NOT_ALLOWED__!>,
                                    <!{curr_state}!>,
                                    <!_state._state!>)
                           ).frac_reassigned > _args.min_frac_reassigned
@@ -327,7 +327,7 @@ def compute_kmeans(schema_madlib, rel_args, rel_state, rel_source,
                         'prev_id': prev_assignment_id}))
 
             if it.test(
-                    m4_ifdef(<!__HAWQ__!>,
+                    m4_ifdef(<!__UDT_NOT_ALLOWED__!>,
                              <!"array_upper(({curr_state}).centroids, 1) < _args.k"!>,
                              <!"array_upper((_state._state).centroids, 1) < _args.k"!>)
                     ):

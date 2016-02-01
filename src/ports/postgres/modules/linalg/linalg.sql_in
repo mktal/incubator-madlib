@@ -452,7 +452,7 @@ m4_ifdef(<!__HAS_FUNCTION_PROPERTIES__!>, <!NO SQL!>, <!!>);
  *     column of \f$ M \f$ and \f$ x \f$. That is,
  *     \f$ \min_{i=0,\dots,l-1} \operatorname{dist}(\vec{m_i}, \vec x) \f$.
  */
-m4_ifdef(<!__UDT_NOT_ALLOWED__!>, <!
+m4_ifdef(<!__UDF_ON_SEGMENT_NOT_ALLOWED__!>, <!
 CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.closest_column(
     M    DOUBLE PRECISION[],
     x    DOUBLE PRECISION[],
@@ -524,7 +524,7 @@ CREATE OR REPLACE FUNCTION MADLIB_SCHEMA._closest_columns(
 LANGUAGE C IMMUTABLE STRICT
 m4_ifdef(<!__HAS_FUNCTION_PROPERTIES__!>, <!NO SQL!>, <!!>);
 
-m4_ifdef(<!__UDT_NOT_ALLOWED__!>, <!
+m4_ifdef(<!__UDF_ON_SEGMENT_NOT_ALLOWED__!>, <!
 CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.closest_columns(
     M DOUBLE PRECISION[],
     x DOUBLE PRECISION[],
