@@ -38,7 +38,7 @@ def get_seg_number():
     return plpy.execute(
         """
         SELECT count(*) from gp_segment_configuration
-        WHERE content >= 0 and role = 'p'
+        WHERE role = 'p'
         """)[0]['count']
     !>)
 # ------------------------------------------------------------
