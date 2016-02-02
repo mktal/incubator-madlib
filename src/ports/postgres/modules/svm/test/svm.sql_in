@@ -814,7 +814,7 @@ INSERT INTO kernel_data (index, x1, x2, y) VALUES (14, 0, -2.70000000000000018, 
 INSERT INTO kernel_data (index, x1, x2, y) VALUES (15, 1.30000000000000004, 2.10000000000000009, 1);
 
 -- verify poly kernel mapping dimensions
-DROP TABLE IF EXISTS m1, m1_summary;
+DROP TABLE IF EXISTS m1, m1_summary, m1_random CASCADE;
 SELECT svm_classification(
      'svm_train_data',
      'm1',
@@ -834,8 +834,8 @@ FROM m1;
 
 -- verify poly kernel with grouping
 -- verify partial string support in kernel specification
-DROP TABLE IF EXISTS svr_mdl_m, svr_mdl_m_summary;
-SELECT madlib.svm_regression(
+DROP TABLE IF EXISTS svr_mdl_m, svr_mdl_m_summary, svr_mdl_m_random CASCADE;
+SELECT svm_regression(
         'abalone_train_small',
         'svr_mdl_m',
         'rings',
@@ -854,7 +854,7 @@ SELECT
 FROM svr_mdl_m;
 
 -- verify poly kernel with cross validation
-DROP TABLE IF EXISTS m1, m1_summary;
+DROP TABLE IF EXISTS m1, m1_summary, m1_random CASCADE;
 SELECT svm_classification(
      'svm_train_data',
      'm1',
@@ -891,7 +891,7 @@ SELECT
 FROM kernel_predict NATURAL JOIN kernel_data
 WHERE prediction <> y;
 SELECT
-    assert(count(*) = 0, 'Using kernel should perfectly fit the data!')
+    assert(count(*) = 0, 'Using gaussian kernel should perfectly fit the data!')
 FROM kernel_predict NATURAL JOIN kernel_data
 WHERE prediction <> y;
 
