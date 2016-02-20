@@ -267,12 +267,12 @@ class PolyKernel(object):
                 {schema_madlib}.array_scalar_mult(
                     array_cat(
                         {schema_madlib}.array_mult(
-                            {schema_madlib}.__array_fold(
+                            {schema_madlib}.__row_fold(
                                 {schema_madlib}.__matrix_vec_mult_in_mem(
                                     q.{features_col}::float[],
                                     weights.{pro.rd_val}::float[]
                                 )::float[],
-                                reps.{pro.rd_val}::float[]
+                                reps.{pro.rd_val}::integer[]
                             )::float[],
                             coefs.{pro.rd_val}::float[]
                         )::float[],
