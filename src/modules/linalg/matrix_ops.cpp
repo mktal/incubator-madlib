@@ -314,13 +314,8 @@ AnyType row_fold::run(AnyType & args){
     }
 
     ColumnVector r(pat.size());
-
-    int curr_idx = 0;
-    for (int i=0; i < pat.size(); i++) {
-        int delta = pat[i];
-        r[i] = vec.segment(curr_idx, delta).prod();
-        curr_idx += delta;
-    }
+    for (int i = 0, j = 0; i < pat.size(); j += pat[i++])
+        r[i] = vec.segment(j, pat[i]).prod();
 
     return r;
 }
