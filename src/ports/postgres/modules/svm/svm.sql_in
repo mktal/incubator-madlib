@@ -90,7 +90,7 @@ svm_classification(
     </DD>
 
   <DT>kernel_params (optional)</DT>
-  <DD>TEXT, defaults: NULL.  
+  <DD>TEXT, defaults: NULL.
     Parameters for non-linear kernel in a comma-separated string of key-value pairs.
     The actual parameters differ depending on the value of \e kernel_func. See the description below for details.
   </DD>
@@ -152,7 +152,7 @@ svm_classification(
       </tr>
     </table>
 
-    An auxiliary table named \<model_table\>_random is created if the kernel is not linear. It contains data needed to embed test data into a random feature space (see references [2,3]). This data is used internally by svm_predict and not meaningful on its own to the user, so you can ignore it. 
+    An auxiliary table named \<model_table\>_random is created if the kernel is not linear. It contains data needed to embed test data into a random feature space (see references [2,3]). This data is used internally by svm_predict and not meaningful on its own to the user, so you can ignore it.
 
 A summary table named \<model_table\>_summary is also created, which has the following columns:
     <table class="output">
@@ -508,7 +508,7 @@ SELECT *, price < 100000 AS target FROM houses JOIN houses_pred_gaussian USING (
 </pre>
 Result for the Gaussian model:
 <pre class="result">
- id | tax  | bedroom | bath | price  | size |  lot  | prediction | target 
+ id | tax  | bedroom | bath | price  | size |  lot  | prediction | target
 ----+------+---------+------+--------+------+-------+------------+--------
   1 |  590 |       2 |    1 |  50000 |  770 | 22100 | t          | t
   2 | 1050 |       3 |    2 |  85000 | 1410 | 12000 | t          | t
@@ -880,6 +880,27 @@ m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA');
 /**
  * @brief Help function
  */
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_predict(
+   message TEXT
+) RETURNS TEXT AS $$
+PythonFunction(svm, svm, svm_predict_help)
+$$ LANGUAGE plpythonu
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `NO SQL', `');
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_predict()
+RETURNS TEXT AS $$
+  SELECT MADLIB_SCHEMA.svm_predict(NULL::TEXT)
+$$ LANGUAGE SQL IMMUTABLE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL', `');
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_predict(
+   message text)
+RETURNS TEXT AS $$
+PythonFunction(svm, svm, svm_predict_help)
+$$ LANGUAGE plpythonu
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `NO SQL', `');
+
 CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_classification (
     message  TEXT
 ) RETURNS TEXT AS $$
