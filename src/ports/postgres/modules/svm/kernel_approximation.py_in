@@ -15,9 +15,6 @@ from random import random
 from random import seed
 
 from operator import mul
-
-from itertools import repeat
-from itertools import chain
 from collections import namedtuple
 
 
@@ -120,7 +117,7 @@ class PolyKernel(object):
                     where desp = 'other_features';
                      """.format(**locals()))
         params = cls.parse_params(kernel_params)
-        pro = PolyRandOperator(weights=rd_weights,coefs=rd_coefs,
+        pro = PolyRandOperator(weights=rd_weights, coefs=rd_coefs,
                                reps=rd_reps, other_features=other_features,
                                rd_id=rd_id, rd_val=rd_val)
 
@@ -156,15 +153,17 @@ class PolyKernel(object):
         # combinations and permutations
         def ncr(n, r):
             r = min(r, n-r)
-            if r == 0: return 1
+            if r == 0:
+                return 1
             numer = reduce(mul, xrange(n, n-r, -1))
             denom = factorial(r+1)
             return numer//denom
 
-      # Maclaurin expansion of f = (q + x)**r
+        # Maclaurin expansion of f = (q + x)**r
         def maclaurin_coefs(r, q, k):
-            if q == 0: return 0.
-            return ncr(r,k)*(q**(r-k))
+            if q == 0:
+                return 0.
+            return ncr(r, k)*(q**(r-k))
 
         self.clear()
         self.orig_data = None
@@ -708,5 +707,3 @@ def load_kernel(schema_madlib, data, kernel_func, kernel_params):
         return GaussianKernelBase.load_from(schema_madlib, data, kernel_params)
     elif kernel_func == 'poly':
         return PolyKernel.load_from(schema_madlib, data, kernel_params)
-
-
