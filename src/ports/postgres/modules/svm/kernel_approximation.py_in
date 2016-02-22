@@ -58,7 +58,7 @@ class PolyKernel(object):
     def __del__(self):
         self.clear()
 
-    def saveAs(self, name):
+    def save_as(self, name):
         if self.orig_data:
             plpy.warning("Polynomial Kernel Warning: no need to save."
                          "Original data table exists: {0}"
@@ -91,7 +91,7 @@ class PolyKernel(object):
         return cls(schema_madlib, **params)
 
     @classmethod
-    def loadFrom(cls, schema_madlib, data, kernel_params=''):
+    def load_from(cls, schema_madlib, data, kernel_params=''):
         other_features = unique_string(desp='other_features')
         rd_weights = unique_string(desp='random_weights')
         rd_coefs = unique_string(desp='random_coefs')
@@ -705,8 +705,8 @@ def load_kernel(schema_madlib, data, kernel_func, kernel_params):
     if kernel_func == 'linear':
         return None
     elif kernel_func == 'gaussian':
-        return GaussianKernelBase.loadFrom(schema_madlib, data, kernel_params)
+        return GaussianKernelBase.load_from(schema_madlib, data, kernel_params)
     elif kernel_func == 'poly':
-        return PolyKernel.loadFrom(schema_madlib, data, kernel_params)
+        return PolyKernel.load_from(schema_madlib, data, kernel_params)
 
 
