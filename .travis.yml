@@ -42,17 +42,15 @@ script:
 notifications:
   email:
     recipients:
-    - sramanujam@pivotal.io
+    - xtang@pivotal.io
     on_success: change
     on_failure: always
 deploy:
   provider: releases
-  api_key:
-    secure: Po9n/WIdjJSIdLkvOIVR97b2piigz6y/z7j19FdqVY6LSi0yDrW+7edOyt0sP/lgHu7roCsFEZO0dRiHu5rD5f5/3uStGL5bvN8hZ05NWQzzJSNt0K8yo/zBHZpL9WeDa5dUupM7WXUmLt20Ggt4J4yBQhVQWhSvhDbiXgvUXcLKiUAwyimOcpaQkOnOb0WWyUZgx/LQVxc9FxUCPArxbYVjHBYr2B/W0zYo9QW3jcpLLQ2ld+2LakRhb5TDBZCRK1vlHIpmq3TZoddCfhaauDJkTIpXc4g3h8UaPD48iyiHHTv98AwhnY/PuiABGfPu9He6D48DPoKHoUNbLWcY62kIA3gnOfPpZn7XaoaGswgswNrvhKANCAdjki7vZu2CubN1Fc2csJ0FfJ+7XMKDXSk2jAPB6XyVtUdvmU7WTgYZ0cxFI9NZrJP3loK6rV07ULfTLviabTrTs01MMZOG3hxQ8NHNXPm0ntXyxftUECjyEYfKl4pb4J3L7VyOrJK6Il92bPg9ruRrdLYoPSG5tpefFNHRs4mA5RBAq6Jt7XYXabgd0RmPPV+S51VGw8rcFmMOdQcpOl+T0uCDLte9VtP+EKF0BYRMQiHz1BsSZ5DmpWeKHwRGuNbwvkpyjHzARfsVobkFi9Gp68dOVQImJ4q948MWvEU/Kvo5+BTPehg=
   file:
     - madlib-1.8dev-Linux.rpm
     - doc/user/latex/refman.pdf
   on:
-    repo: vatsan/incubator-madlib
+    repo: mktal/incubator-madlib
     tags: true
   skip_cleanup: true
