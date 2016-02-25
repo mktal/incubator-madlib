@@ -6,7 +6,6 @@
 
 # For Solaris, we want to use the Sun compiler
 # See http://www.cmake.org/Bug/view.php?id=8530
-# test travis ci
 set(CMAKE_GENERATOR_CC  suncc gcc)
 set(CMAKE_GENERATOR_CXX sunCC g++)
 

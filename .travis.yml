@@ -46,5 +46,5 @@ deploy:
   on:
     repo: mktal/incubator-madlib
     branch: travis-ci
-    tags: true
+    # tags: true # deployed when a tag is applied
   skip_cleanup: true
