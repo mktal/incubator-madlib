@@ -52,5 +52,6 @@ deploy:
     - doc/user/latex/refman.pdf
   on:
     repo: mktal/incubator-madlib
+    branch: travis-ci
     tags: true
   skip_cleanup: true
