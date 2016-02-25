@@ -91,7 +91,7 @@ class GroupIterationController:
         return self
 
     def final(self):
-        insert_sql = """
+        insert_plan = plpy.prepare("""
             INSERT INTO {rel_state}
             SELECT
                 {col_grp_key},
@@ -110,16 +110,13 @@ class GroupIterationController:
                         unnest($2) AS {col_grp_state}
                 ) AS _rel_state
             USING ({col_grp_key})
-            """.format(iteration=self.iteration, **self.kwargs)
-        insert_plan = plpy.prepare(insert_sql,
+            """.format(iteration=self.iteration, **self.kwargs),
             ["text[]", "{schema_madlib}.bytea8[]".format(**self.kwargs)])
 
         plpy.execute(insert_plan, [self.finished_states.keys(),
                                    self.finished_states.values()])
 
         if self.failed_grp_keys:
-            insert_plan = plpy.prepare(insert_sql,
-                                        ["text[]", "{schema_madlib}.bytea8[]".format(**self.kwargs)])
             plpy.execute(insert_plan, [self.failed_grp_keys, [None]])
 
     def __exit__(self, type, value, tb):
