@@ -45,12 +45,4 @@ notifications:
     - xtang@pivotal.io
     on_success: change
     on_failure: always
-deploy:
-  provider: releases
-  file:
-    - madlib-1.8dev-Linux.rpm
-    - doc/user/latex/refman.pdf
-  on:
-    repo: mktal/incubator-madlib
-    tags: true
-  skip_cleanup: true
+
