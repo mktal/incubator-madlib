@@ -19,8 +19,6 @@ install:
 - sudo apt-get -y update
 - sudo apt-get -y install texlive-full
 - sudo apt-get -y install texlive
-#- sudo apt-get install texlive-latex-extra
-#- sudo apt-get install texlive-bibtex-extra
 - sudo apt-get install postgresql-9.2 postgresql-client-9.2
 - sudo apt-get install postgresql-server-dev-9.2
 - wget http://ftp.stack.nl/pub/users/dimitri/doxygen-1.8.4.linux.bin.tar.gz
@@ -45,4 +43,14 @@ notifications:
     - xtang@pivotal.io
     on_success: change
     on_failure: always
-
+deploy:
+  provider: releases
+  api_key:
+    secure: ROFHb6HPEC+WWTM7fOtzczw894ANoqEEZnYK8J9YFLF0G6cDqW407eiqyRs4goB9y6oQcqsEpisF6Ioa+pCjhqpflNeibiKPG4wGGFKeFPxHJYbTKL/3xu1yTVXjc26x/dgZYxikNrrMzHQGEQmNeZuxT6vqp6RqAKmYwkFnmECAkJM2PLX4mXe39JmMkD2+cs6UfZLS7B2tCc8Jf3FGt2FLCUt4qX5cFHwUp70Wf40bXqvrbSgvorm2yBZe7xchZF6AaFNNTFkFpY0sBssYZdKr65e1msLAS1J4MNadhoC2XAieXEgSfBLNcgMIgm8lncCXGR69sBeXj6Wz3VOvsBc/EU49AkWtZTBIniFmfjmbfFMRVEEbM6dG0evzoW1CjP0CLGhHOItTZMl16w7AX2qBoQ57aQWkHnUlMk0IZjG3Tv8/BILHs2ty2GJvOrUpjjloEMluzcl9LPQJ5ZW+p7M2s9M0nBcHzvcuL1HV7Srha5zDz9CNpqVLfLTMrY6pCAu8wyQbldM46xqc5tMWjvP02OGNo5APjAjNgZBXkMNDnJ6/Mqx0LWDpT3TZIp6SkMIFsEwUufclOZz5W1Dwfnh7q17nJlgifWEi+XtYH8zpeA89YA05chyLT1KklimVlRsEbVYWklOv4ddUGfttN1OYKFRPj8SCcXJjKUJg3N8=
+  file:
+    - madlib-1.8dev-Linux.rpm
+    - doc/user/latex/refman.pdf
+  on:
+    repo: mktal/incubator-madlib
+    tags: true
+  skip_cleanup: true
