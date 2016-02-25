@@ -369,10 +369,10 @@ def compute_coxph(schema_madlib, source_table, output_table, index, dep,
     old_coef = coef
     n_iter = 0
     max_coef = [-1] * n_features  # limit of coefficients
+    sql_plan = plpy.prepare(sql, ["double precision[]", "double precision[]"])
     while True:
         n_iter += 1
         # The result contains coef, L, d2L
-        sql_plan = plpy.prepare(sql, ["double precision[]", "double precision[]"])
         result = plpy.execute(sql_plan, [coef, max_coef])[0]
 
         prev_L, L = L, result['l']
