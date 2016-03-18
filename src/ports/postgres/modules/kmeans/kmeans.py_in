@@ -66,9 +66,9 @@ def compute_kmeanspp_seeding(schema_madlib, rel_args, rel_state, rel_source,
         expr_point=expr_point)
     with iterationCtrl as it:
         if UDF_ON_SEGMENT_NOT_ALLOWED:
-            fn_dist_str = plpy.execute("SELECT fn_dist_name as t FROM " + rel_args)[0][t]
+            fn_dist_str = plpy.execute("SELECT fn_dist_name as t FROM " + rel_args)[0]['t']
         else:
-            fn_dist_str = plpy.execute("SELECT fn_dist as t FROM " + rel_args)[0][t]
+            fn_dist_str = plpy.execute("SELECT fn_dist as t FROM " + rel_args)[0]['t']
 
         if STATE_IN_MEM:
             state_str = "(SELECT {schema_madlib}.array_to_2d($1))"
@@ -187,7 +187,7 @@ def compute_kmeans_random_seeding(schema_madlib, rel_args, rel_state,
                     %(state_join_str)s
                 """%{'m': m, 'state_str': state_str, 'state_join_str': state_join_str}
                 )
-            m = it.evaluate("_args.k - coalesce(array_upper({0}), 1), 0)".format(state_str))
+            m = it.evaluate("_args.k - coalesce(array_upper({0}, 1), 0)".format(state_str))
     return iterationCtrl.iteration
 # ------------------------------------------------------------------------------
 
