@@ -180,8 +180,9 @@ def compute_kmeans_random_seeding(schema_madlib, rel_args, rel_state,
                         ORDER BY random()
                         LIMIT %(m)s
                     ) AS _src
-                    {state_join_str}
-                """%('m': m, 'state_str': state_str))
+                    %(state_join_str)s
+                """%{'m': m, 'state_str': state_str, 'state_join_str': state_join_str}
+                )
             m = it.evaluate("_args.k - coalesce(array_upper({0}), 1), 0)".format(state_str))
     return iterationCtrl.iteration
 # ------------------------------------------------------------------------------
