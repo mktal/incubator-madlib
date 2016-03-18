@@ -19,7 +19,7 @@ from utilities import unique_string
 _unique_string = unique_string
 
 
-UDT_NOT_ALLOWED = m4_ifdef(<!__UDT_NOT_ALLOWED__!>, <!True!>, <!False!>)
+STATE_IN_MEM = m4_ifdef(<!__HAWQ__!>, <!True!>, <!False!>)
 HAS_FUNCTION_PROPERTIES = m4_ifdef(<!__HAS_FUNCTION_PROPERTIES__!>, <!True!>, <!False!>)
 UDF_ON_SEGMENT_NOT_ALLOWED = m4_ifdef(<!__UDF_ON_SEGMENT_NOT_ALLOWED__!>, <!True!>, <!False!>)
 
@@ -161,7 +161,7 @@ class IterationController:
         self.inWith = False
         self.iteration = -1
         self.initialize_state = initialize_state
-        if UDT_NOT_ALLOWED:
+        if STATE_IN_MEM:
             self.new_state={"_iteration": 0, "_state": None}
             self.old_state={"_iteration": 0, "_state": None}
 
@@ -185,7 +185,7 @@ class IterationController:
 
     def __exit__(self, type, value, tb):
         self.inWith = False
-        if UDT_NOT_ALLOWED:
+        if STATE_IN_MEM:
             insert_plan = plpy.prepare("""
                 INSERT INTO {rel_state}
                 SELECT $1, $2
@@ -216,7 +216,7 @@ class IterationController:
         # since currently ORCA has a bug for left outer joins (MPP-21868).
         # This should be removed when the issue is fixed in ORCA.
         with EnableOptimizer(False):
-            if UDT_NOT_ALLOWED:
+            if STATE_IN_MEM:
                 eval_plan = plpy.prepare("""
                     SELECT ({expression}) AS expression
                     FROM {{rel_args}} AS _args
@@ -285,7 +285,7 @@ class IterationController:
         newState = newState.format(iteration=self.iteration, **updateKwargs)
         self.iteration = self.iteration + 1
 
-        if UDT_NOT_ALLOWED:
+        if STATE_IN_MEM:
             self.old_state = self.new_state
             update_plan = plpy.prepare("""
                 SELECT
@@ -322,7 +322,7 @@ class IterationController2D(IterationController):
 
     def __exit__(self, type, value, tb):
         self.inWith = False
-        if UDT_NOT_ALLOWED:
+        if STATE_IN_MEM:
             insert_plan = plpy.prepare("""
                     INSERT INTO {rel_state}
                     SELECT $1, {schema_madlib}.array_to_2d($2)
@@ -348,7 +348,7 @@ class IterationController2D(IterationController):
         # since ORCA has a bug for left outer joins (MPP-21868).
         # This should be removed when the issue is fixed in ORCA.
         with EnableOptimizer(False):
-            if UDT_NOT_ALLOWED:
+            if STATE_IN_MEM:
                 eval_plan = plpy.prepare("""
                     SELECT ({expression}) AS expression
                     FROM {{rel_args}} AS _args
@@ -402,7 +402,7 @@ class IterationController2D(IterationController):
             **updateKwargs)
         self.iteration = self.iteration + 1
 
-        if UDT_NOT_ALLOWED:
+        if STATE_IN_MEM:
             self.old_state = self.new_state
             update_plan = plpy.prepare("""
                 SELECT
@@ -438,7 +438,7 @@ class IterationController2S(IterationController):
     """
 
     def evaluate(self, expression):
-        if UDT_NOT_ALLOWED:
+        if STATE_IN_MEM:
             eval_plan = plpy.prepare("""
                 SELECT ({expression}) AS expression
                 FROM {{rel_args}} AS _args
@@ -481,12 +481,12 @@ class IterationController2S(IterationController):
         else:
             return resultObject[0]['expression']
 
-    m4_ifdef(<!__UDT_NOT_ALLOWED__!>, <!
-    def get_state_size(self):
-        return len(self.new_state)
+    if STATE_IN_MEM:
+        def get_state_size(self):
+            return len(self.new_state)
 
-    def get_state_value(self, index):
-        return self.new_state['_state'][index]
-    !>)
+        def get_state_value(self, index):
+            return self.new_state['_state'][index]
+
 
 m4_changequote(<!`!>, <!'!>)

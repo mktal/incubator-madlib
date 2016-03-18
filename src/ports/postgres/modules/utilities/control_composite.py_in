@@ -19,7 +19,7 @@ from utilities import unique_string
 _unique_string = unique_string
 from control import MinWarning, EnableOptimizer
 
-UDT_NOT_ALLOWED = m4_ifdef(<!__UDT_NOT_ALLOWED__!>, <!True!>, <!False!>)
+STATE_IN_MEM = m4_ifdef(<!__HAWQ__!>, <!True!>, <!False!>)
 HAS_FUNCTION_PROPERTIES = m4_ifdef(<!__HAS_FUNCTION_PROPERTIES__!>, <!True!>, <!False!>)
 UDF_ON_SEGMENT_NOT_ALLOWED = m4_ifdef(<!__UDF_ON_SEGMENT_NOT_ALLOWED__!>, <!True!>, <!False!>)
 
@@ -63,7 +63,7 @@ class IterationControllerComposite:
         self.verbose = verbose
         self.inWith = False
         self.iteration = -1
-        if UDT_NOT_ALLOWED:
+        if STATE_IN_MEM:
             self.new_state = None
             self.old_state = None
 
@@ -83,7 +83,7 @@ class IterationControllerComposite:
 
     def __exit__(self, type, value, tb):
         self.inWith = False
-        if UDT_NOT_ALLOWED:
+        if STATE_IN_MEM:
             insert_plan=plpy.prepare("""
                 INSERT INTO {rel_state}
                 SELECT $1, CAST( ({schema_madlib}.array_to_2d($2), $3, $4, $5) AS {schema_madlib}.kmeans_state)
@@ -117,7 +117,7 @@ class IterationControllerComposite:
         # since ORCA has a bug for left outer joins (MPP-21868).
         # This should be removed when the issue is fixed in ORCA.
         with EnableOptimizer(False):
-            if UDT_NOT_ALLOWED:
+            if STATE_IN_MEM:
                 cast_str = "CAST (({schema_madlib}.array_to_2d($1), $2, $3, $4) AS {schema_madlib}.kmeans_state)".format(**self.kwargs)
                 cast_type = [ "DOUBLE PRECISION[]", "INTEGER[]", "DOUBLE PRECISION", "DOUBLE PRECISION" ]
                 cast_para = [None if self.new_state is None else self.new_state[i]
@@ -192,7 +192,7 @@ class IterationControllerComposite:
             **updateKwargs)
         self.iteration = self.iteration + 1
 
-        if UDT_NOT_ALLOWED:
+        if STATE_IN_MEM:
             cast_str = """CAST (({schema_madlib}.array_to_2d($1), $2, $3, $4)
                             AS {schema_madlib}.kmeans_state)""".format(**self.kwargs)
             cast_str_old  = """CAST (({schema_madlib}.array_to_2d($5), $6, $7, $8)
