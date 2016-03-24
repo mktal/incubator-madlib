@@ -1171,13 +1171,13 @@ def _compute_residual(schema_madlib, source_table, output_table,
                                 ({dep_column} - {mean})::DOUBLE PRECISION,
                                 residual,
                                 (SELECT hessian FROM {cox_output_table}),
-                                {m}::INTEGER)
+                                {n_uncensored}::INTEGER)
                     AS f
             FROM
                 {output_residual}
         ) AS q1
         m4_ifdef(<!__POSTGRESQL__!>, <!!>, <!DISTRIBUTED RANDOMLY!>)
-        """.format(mean=mean,output_residual=output_residual,**format_args))
+        """.format(mean=mean, output_residual=output_residual, **format_args))
     # Cleanup
     plpy.execute('DROP TABLE IF EXISTS ' + residual_table)
 
