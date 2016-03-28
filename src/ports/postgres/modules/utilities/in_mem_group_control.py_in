@@ -116,7 +116,8 @@ class GroupIterationController:
         plpy.execute(insert_plan, [self.finished_states.keys(),
                                    self.finished_states.values()])
 
-        plpy.execute(insert_plan, [self.failed_grp_keys, [None]])
+        if self.failed_grp_keys:
+            plpy.execute(insert_plan, [self.failed_grp_keys, [None]])
 
     def __exit__(self, type, value, tb):
         self.in_with = False
