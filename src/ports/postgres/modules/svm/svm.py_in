@@ -660,6 +660,42 @@ def svm_help(schema_madlib, message, is_svc, **kwargs):
         """.format(**args)
 
 
+def svm_one_class(schema_madlib, source_table, model_table,
+        independent_varname, kernel_func,
+        kernel_params, grouping_col, params,
+        verbose, **kwargs):
+    """
+    Executes the linear support vector one-class classification algorithm.
+    This makes a copy of the source_table to a temporary table and adds a new
+    column called dependent variable with all having '1' as the value.
+    """
+    is_svc = True
+    # Create a temporary table
+    source_temp_table = unique_string(desp=source_table)
+    plpy.execute(
+      """
+      CREATE TEMP TABLE {source_temp_table} AS 
+      SELECT * FROM {source_table} 
+      """.format(source_temp_table=source_temp_table, source_table=source_table))
+
+    plpy.execute(""" 
+      SELECT * from {source_temp_table}
+      """.format(source_temp_table=source_temp_table))
+
+    # Add a new column for the dependent variable
+    dependent_varname = unique_string(desp='dep_var')
+    plpy.execute(
+      """
+      ALTER TABLE {source_temp_table} ADD COLUMN {dependent_varname} FLOAT8 NOT NULL DEFAULT '1.0'
+      """.format(source_temp_table=source_temp_table, dependent_varname=dependent_varname))
+    # Call the method to learn the svm classification model, with the new temp
+    # table as the source table, and the newly created dependent variable in it. 
+    # Every other parameter remains the same.
+    svm(schema_madlib, source_temp_table, model_table,
+        dependent_varname, independent_varname, kernel_func,
+        kernel_params, grouping_col, params, is_svc,
+        verbose, **kwargs);
+
 def svm(schema_madlib, source_table, model_table,
         dependent_varname, independent_varname, kernel_func,
         kernel_params, grouping_col, params, is_svc,
@@ -962,9 +998,12 @@ def _svc_or_svr(is_svc, source_table, dependent_varname):
                            if isinstance(d['y'], basestring)
                            else str(d['y']) for d in dep_labels]
 
-        _assert(len(dep_var_mapping) == 2,
+        # _assert(len(dep_var_mapping) == 2,
+        #         "SVM Error: Classification currently "
+        #         "only supports binary output!")
+        _assert(len(dep_var_mapping) == 1 or len(dep_var_mapping) == 2,
                 "SVM Error: Classification currently "
-                "only supports binary output!")
+                "only supports unary or binary output!")
 
         col_dep_var_trans = (
             """
@@ -977,13 +1016,26 @@ def _svc_or_svr(is_svc, source_table, dependent_varname):
                     mapped_value_for_negative=dep_var_mapping[0])
             )
 
-        _args.update({
-            'mapped_value_for_negative': dep_var_mapping[0],
-            'col_dep_var_trans': col_dep_var_trans,
-            'mapping': dep_var_mapping[0] + "," + dep_var_mapping[1],
-            'method': 'SVC'})
+        # _args.update({
+        #     'mapped_value_for_negative': dep_var_mapping[0],
+        #     'col_dep_var_trans': col_dep_var_trans,
+        #     'mapping': dep_var_mapping[0] + "," + dep_var_mapping[1],
+        #     'method': 'SVC'})
+        if len(dep_var_mapping) == 1:
+          _args.update({
+              'mapped_value_for_negative': dep_var_mapping[0],
+              'col_dep_var_trans': col_dep_var_trans,
+              'mapping': dep_var_mapping[0] + ",-1.0",
+              'method': 'SVC'})
+        else:
+          _args.update({
+              'mapped_value_for_negative': dep_var_mapping[0],
+              'col_dep_var_trans': col_dep_var_trans,
+              'mapping': dep_var_mapping[0] + "," + dep_var_mapping[1],
+              'method': 'SVC'})
 
     return _args
+
 
 
 def _process_epsilon(is_svc, args):

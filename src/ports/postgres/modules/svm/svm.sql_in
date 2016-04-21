@@ -19,6 +19,7 @@ m4_include(`SQLCommon.m4')
 <div class="toc"><b>Contents</b><ul>
 <li class="level1"><a href="#svm_classification">Classification Function</a></li>
 <li class="level1"><a href="#svm_regression">Regression Function</a></li>
+<li class="level1"><a href="#novelty_detection">Novelty Detection</a></li>
 <li class="level1"><a href="#kernel_params">Kernel Parameters</a></li>
 <li class="level1"><a href="#parameters">Other Parameters</a></li>
 <li class="level1"><a href="#predict">Prediction Functions</a></li>
@@ -255,6 +256,26 @@ The parameters \e epsilon and \e eps_table are only meaningful for regression. S
 </DD>
 </DL>
 
+@anchor novelty_detection
+@par Novelty Detection Training Function
+The novelty detection function is a one-class SVM classifier, and has the following format:
+<pre class="syntax">
+svm_one_class(
+    source_table,
+    model_table,
+    independent_varname,
+    kernel_func,
+    kernel_params,
+    grouping_col,
+    params,
+    verbose
+    )
+</pre>
+\b Arguments
+
+Specifications for novelty detection are largely the same as for classification, excepting
+that the dependent variable name is not specified. The model table is the same as that for classification.
+
 
 @anchor kernel_params
 @par Kernel Parameters
@@ -459,7 +480,48 @@ SELECT madlib.svm_classification( 'houses',
                                   'init_stepsize=1, max_iter=200'
                            );
 </pre>
--# View the result for the linear model.
+-#  Now train a regression model. First, use a linear model.
+<pre class="example">
+SELECT madlib.svm_regression('houses',
+                                 'houses_svm_regression',
+                                 'price',
+                                 'ARRAY[1, tax, bath, size]',
+                                 NULL, NULL, NULL,
+                                 'init_stepsize=0.01, max_iter=200, lambda=[0.0002, 0.2],',
+                                 'n_folds=3, epsilon = [0.003, 0.2]');
+                           );
+</pre>
+-#  Next train a non-linear regression model using a Gaussian kernel.
+<pre class="example">
+SELECT madlib.svm_regression( 'houses',
+                              'houses_svm_gaussian_regression',
+                              'price',
+                              'ARRAY[1, tax, bath, size]',
+                              'gaussian',
+                              'n_components=10',
+                              '',
+                              'init_stepsize=1, max_iter=200'
+                           );
+</pre>
+-#  Now train a one-class SVM for novelty detection. First, use a linear model.
+<pre class="example">
+SELECT madlib.svm_one_class('houses',
+                            'houses_svm',
+                            'ARRAY[1, tax, bath, size]'
+                           );
+</pre>
+-#  Next train a non-linear one-class SVM for novelty detection, using a Gaussian kernel.
+<pre class="example">
+SELECT madlib.svm_one_class( 'houses',
+                              'houses_svm_gaussian_regression',
+                              'ARRAY[1, tax, bath, size]',
+                              'gaussian',
+                              'n_components=10',
+                              '',
+                              'init_stepsize=1, max_iter=200'
+                           );
+</pre>
+-# View the result for the linear classification model.
 <pre class="example">
 -- Set extended display on for easier reading of output
 \\x ON
@@ -477,7 +539,7 @@ num_rows_skipped   | 0
 dep_var_mapping    | [False, True]
 </pre>
 
--# View the results from kernel SVM.
+-# View the results from kernel SVM for classification.
 <pre class="example">
 -- Set extended display on for easier reading of output
 \\x ON
@@ -494,7 +556,40 @@ num_rows_processed | 15
 num_rows_skipped   | 0
 dep_var_mapping    | [False, True]
 </pre>
-
+-# View the result for the linear regression model.
+<pre class="example">
+-- Set extended display on for easier reading of output
+\\x ON
+SELECT * FROM houses_svm_regression;
+</pre>
+Result:
+<pre class="result">
+-[ RECORD 1 ]------+-----------------------------------------------------------
+coef               | {0.108331895548,38.7056695139,0.40444087325,43.3271927438}
+loss               | 342988.843452
+norm_of_gradient   | 1659.20424823876
+num_iterations     | 183
+num_rows_processed | 15
+num_rows_skipped   | 0
+dep_var_mapping    | {NULL}
+</pre>
+-# View the results from kernel SVM for regression.
+<pre class="example">
+-- Set extended display on for easier reading of output
+\\x ON
+SELECT * FROM houses_svm_gaussian_regression;
+</pre>
+Result:
+<pre class="result">
+-[ RECORD 1 ]------+----------------------------------------------------------------------------------------------------------------------------------------------------
+coef               | {12.6287285299,-12.9733002831,0.848080861156,5.94293328578,-6.34552545847,-19.7726249109,5.50362313774,-10.3908022228,-3.36031145266,16.0655950574}
+loss               | 1831979.57085
+norm_of_gradient   | 3.29486194349202
+num_iterations     | 107
+num_rows_processed | 15
+num_rows_skipped   | 0
+dep_var_mapping    | {NULL}
+</pre>
 -# Use the prediction function to evaluate the models. The predicted results are in the \e prediction column and the actual data is in the \e target column.
 For the linear model:
 <pre class="example">
@@ -505,6 +600,11 @@ For the Gaussian model:
 <pre class="example">
 SELECT madlib.svm_predict('houses_svm_gaussian', 'houses', 'id', 'houses_pred_gaussian');
 SELECT *, price < 100000 AS target FROM houses JOIN houses_pred_gaussian USING (id) ORDER BY id;
+</pre>
+For the linear regression model:
+<pre class="example">'m1','houses','id','regre'
+SELECT madlib.svm_predict('houses_svm_regression', 'houses', 'id', 'houses_regr');
+SELECT * FROM houses_regr;
 </pre>
 Result for the Gaussian model:
 <pre class="result">
@@ -526,8 +626,27 @@ Result for the Gaussian model:
  14 | 2070 |       2 |    3 | 148000 | 1550 | 14000 | f          | f
  15 |  650 |       3 |  1.5 |  65000 | 1450 | 12000 | t          | t
 </pre>
+Result for the linear regression model:
+<pre class="result">
+ id |    prediction
+----+------------------
+  1 | 56198.7961986958
+  2 | 101733.211971995
+  3 | 46701.4504714748
+  4 | 90000.2002576751
+  5 |  116083.19008769
+  6 | 87781.4646664498
+  7 | 200276.857922154
+  8 | 77013.1835524668
+  9 | 136210.138234918
+ 10 | 263320.648779996
+ 11 | 108878.932691957
+ 12 |  116863.09275591
+ 13 |  196244.35193582
+ 14 | 147279.206301178
+ 15 | 87983.8296557504
+</pre>
 Note the result may vary somewhat with the platform configuration you are using.
-
 
 @anchor background
 @par Technical Background
@@ -848,6 +967,81 @@ CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_classification(
     SELECT MADLIB_SCHEMA.svm_classification($1, $2, $3, $4, NULL);
 $$ LANGUAGE sql VOLATILE
 m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA');
+-----------------------------------------------------------------
+
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_one_class(
+    source_table text,
+    model_table text,
+    independent_varname text,
+    kernel_func text,
+    kernel_params text,
+    grouping_col text,
+    params text,
+    verbose bool)
+RETURNS void AS $$
+    PythonFunction(svm, svm, svm_one_class)
+$$ LANGUAGE plpythonu VOLATILE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA');
+
+-- all default value handling implemented in Python
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_one_class(
+    source_table text,
+    model_table text,
+    independent_varname text,
+    kernel_func text,
+    kernel_params text,
+    grouping_col text,
+    params text)
+RETURNS void AS $$
+    SELECT MADLIB_SCHEMA.svm_one_class($1, $2, $3, $4, $5, $6, $7, NULL);
+$$ LANGUAGE sql VOLATILE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA');
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_one_class(
+    source_table text,
+    model_table text,
+    independent_varname text,
+    kernel_func text,
+    kernel_params text,
+    grouping_col text)
+RETURNS void AS $$
+    SELECT MADLIB_SCHEMA.svm_one_class($1, $2, $3, $4, $5, $6, NULL);
+$$ LANGUAGE sql VOLATILE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA');
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_one_class(
+    source_table text,
+    model_table text,
+    independent_varname text,
+    kernel_func text,
+    kernel_params text)
+  RETURNS void AS $$
+    SELECT MADLIB_SCHEMA.svm_one_class($1, $2, $3, $4, $5, NULL);
+$$ LANGUAGE sql VOLATILE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA');
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_one_class(
+    source_table text,
+    model_table text,
+    independent_varname text,
+    kernel_func text)
+  RETURNS void AS $$
+    SELECT MADLIB_SCHEMA.svm_one_class($1, $2, $3, $4, NULL);
+$$ LANGUAGE sql VOLATILE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA');
+
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_one_class(
+    source_table text,
+    model_table text,
+    independent_varname text)
+  RETURNS void AS $$
+    SELECT MADLIB_SCHEMA.svm_one_class($1, $2, $3, NULL);
+$$ LANGUAGE sql VOLATILE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `MODIFIES SQL DATA');
+
+
 
 ------ Prediction -------------------------------------------------------------
 /**
