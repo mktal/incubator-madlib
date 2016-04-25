@@ -483,12 +483,9 @@ SELECT madlib.svm_classification( 'houses',
 -#  Now train a regression model. First, use a linear model.
 <pre class="example">
 SELECT madlib.svm_regression('houses',
-                                 'houses_svm_regression',
-                                 'price',
-                                 'ARRAY[1, tax, bath, size]',
-                                 NULL, NULL, NULL,
-                                 'init_stepsize=0.01, max_iter=200, lambda=[0.0002, 0.2],',
-                                 'n_folds=3, epsilon = [0.003, 0.2]');
+                             'houses_svm_regression',
+                             'price',
+                             'ARRAY[1, tax, bath, size]'
                            );
 </pre>
 -#  Next train a non-linear regression model using a Gaussian kernel.
@@ -503,23 +500,16 @@ SELECT madlib.svm_regression( 'houses',
                               'init_stepsize=1, max_iter=200'
                            );
 </pre>
--#  Now train a one-class SVM for novelty detection. First, use a linear model.
+-#  Now train a non-linear one-class SVM for novelty detection, using a Gaussian kernel.
 <pre class="example">
-SELECT madlib.svm_one_class('houses',
-                            'houses_svm',
-                            'ARRAY[1, tax, bath, size]'
-                           );
-</pre>
--#  Next train a non-linear one-class SVM for novelty detection, using a Gaussian kernel.
-<pre class="example">
-SELECT madlib.svm_one_class( 'houses',
-                              'houses_svm_gaussian_regression',
-                              'ARRAY[1, tax, bath, size]',
-                              'gaussian',
-                              'n_components=10',
-                              '',
-                              'init_stepsize=1, max_iter=200'
-                           );
+select madlib.svm_one_class('houses',
+                            'houses_one_class_gaussian',
+                            'ARRAY[1,tax,bedroom,bath,size,lot,price]',
+                            'gaussian',
+                            'gamma=0.01,n_components=10',
+                            NULL,
+                            'max_iter=250, init_stepsize=100,lambda=0.9'
+                            );
 </pre>
 -# View the result for the linear classification model.
 <pre class="example">
@@ -538,7 +528,6 @@ num_rows_processed | 15
 num_rows_skipped   | 0
 dep_var_mapping    | [False, True]
 </pre>
-
 -# View the results from kernel SVM for classification.
 <pre class="example">
 -- Set extended display on for easier reading of output
@@ -590,6 +579,23 @@ num_rows_processed | 15
 num_rows_skipped   | 0
 dep_var_mapping    | {NULL}
 </pre>
+-# View the result for the Gaussian novelty detection model.
+<pre class="example">
+-- Set extended display on for easier reading of output
+\\x ON
+SELECT * FROM houses_one_class_gaussian;
+</pre>
+Result:
+<pre class="result">
+-[ RECORD 1 ]------+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+coef               | {0.653884911436,-0.963113029604,-0.49030220733,-0.352594122599,-1.29858359915,0.821120203574,-0.0657750847612,0.563678190211,0.822382924741,1.08544389673}
+loss               | 7.29444919305
+norm_of_gradient   | 0.76407243171229
+num_iterations     | 208
+num_rows_processed | 15
+num_rows_skipped   | 0
+dep_var_mapping    | {1,-1}
+</pre>
 -# Use the prediction function to evaluate the models. The predicted results are in the \e prediction column and the actual data is in the \e target column.
 For the linear model:
 <pre class="example">
@@ -604,9 +610,42 @@ SELECT *, price < 100000 AS target FROM houses JOIN houses_pred_gaussian USING (
 For the linear regression model:
 <pre class="example">'m1','houses','id','regre'
 SELECT madlib.svm_predict('houses_svm_regression', 'houses', 'id', 'houses_regr');
-SELECT * FROM houses_regr;
+SELECT * FROM houses JOIN houses_regr USING (id) ORDER BY id;
 </pre>
-Result for the Gaussian model:
+For the non-linear Gaussian regression model:
+<pre class="example">'m1','houses','id','regre'
+SELECT madlib.svm_predict('houses_svm_gaussian_regression', 'houses', 'id', 'houses_gaussian_regr');
+SELECT * FROM houses JOIN houses_gaussian_regr USING (id) ORDER BY id;
+</pre>
+-#  Create test data set for novelty detection.
+<pre class="example">
+DROP TABLE IF EXISTS houses_novelty_test;
+CREATE TABLE houses_novelty_test (id INT, tax INT, bedroom INT, bath FLOAT, price INT,
+            size INT, lot INT);
+COPY houses_novelty_test FROM STDIN WITH DELIMITER '|';
+  1 |  33590 |       12 |    11 |  5000000 |  12770 | 221100
+  2 | 1050 |       31 |    21 |  85000000 | 141210 | 120010
+  3 |   233330 |     13 |    11 |  22500000 | 112060 |  351100
+  4 |  833370 |       12 |    12 |  9000000 | 130120 | 1751100
+  5 | 132330 |       31 |    12 | 133000000 | 150120 | 30011100
+  6 | 135330 |       21 |    11 |  90500000 |  8212120 | 25711100
+  7 | 279330 |       31 |  21.5 | 260000000 | 213012 | 25011100
+  8 | 6803333 |       12 |    11 | 142500000 | 117012 | 22111000
+  9 | 33331840 |       31 |    12 | 160000000 | 150120 | 19011100
+ 10 | 3780 |       4 |    2 | 220000 | 2790 | 21000
+ 11 | 1760 |       3 |    1 |  77000 | 1030 | 18500
+ 12 | 1520 |       3 |    2 | 128600 | 1250 | 21000
+ 13 | 3000 |       3 |    2 | 130000 | 1760 | 37000
+ 14 | 2170 |       2 |    3 | 138000 | 1550 | 13000
+ 15 |  750 |       3 |  1.5 |  75000 | 1450 | 13000
+\\.
+</pre>
+Evaluate the Gaussian one-class novelty detection model with the prediction function:
+<pre class="example">
+SELECT madlib.svm_predict('houses_one_class_gaussian', 'houses_novelty_test', 'id', 'houses_novelty_predict');
+SELECT * FROM houses_novelty_test JOIN houses_novelty_predict USING (id) ORDER BY id;
+</pre>
+Result for the Gaussian classification model:
 <pre class="result">
  id | tax  | bedroom | bath | price  | size |  lot  | prediction | target
 ----+------+---------+------+--------+------+-------+------------+--------
@@ -628,23 +667,43 @@ Result for the Gaussian model:
 </pre>
 Result for the linear regression model:
 <pre class="result">
- id |    prediction
-----+------------------
-  1 | 56198.7961986958
-  2 | 101733.211971995
-  3 | 46701.4504714748
-  4 | 90000.2002576751
-  5 |  116083.19008769
-  6 | 87781.4646664498
-  7 | 200276.857922154
-  8 | 77013.1835524668
-  9 | 136210.138234918
- 10 | 263320.648779996
- 11 | 108878.932691957
- 12 |  116863.09275591
- 13 |  196244.35193582
- 14 | 147279.206301178
- 15 | 87983.8296557504
+ id | tax  | bedroom | bath | price  | size |  lot  |    prediction
+----+------+---------+------+--------+------+-------+------------------
+  1 |  590 |       2 |    1 |  50000 |  770 | 22100 | 56191.8809366501
+  2 | 1050 |       3 |    2 |  85000 | 1410 | 12000 | 101723.720832136
+  3 |   20 |       3 |    1 |  22500 | 1060 |  3500 | 46774.6724252011
+  4 |  870 |       2 |    2 |  90000 | 1300 | 17500 | 90001.6946038879
+  5 | 1320 |       3 |    2 | 133000 | 1500 | 30000 | 116051.892408163
+  6 | 1350 |       2 |    1 |  90500 |  820 | 25700 | 87698.7223915241
+  7 | 2790 |       3 |  2.5 | 260000 | 2130 | 25000 | 200136.782523288
+  8 |  680 |       2 |    1 | 142500 | 1170 | 22000 | 77025.2857759612
+  9 | 1840 |       3 |    2 | 160000 | 1500 | 19000 | 136124.528457551
+ 10 | 3680 |       4 |    2 | 240000 | 2790 | 20000 | 263134.504674981
+ 11 | 1660 |       3 |    1 |  87000 | 1030 | 17500 | 108778.731320579
+ 12 | 1620 |       3 |    2 | 118600 | 1250 | 20000 | 116782.700138583
+ 13 | 3100 |       3 |    2 | 140000 | 1760 | 38000 | 196045.611244141
+ 14 | 2070 |       2 |    3 | 148000 | 1550 | 14000 | 147173.127261586
+ 15 |  650 |       3 |  1.5 |  65000 | 1450 | 12000 |  88018.958223626
+</pre>
+Result for the Gaussian one-class novelty detection model:
+<pre class="result">
+ id |   tax    | bedroom | bath |   price   |  size   |   lot    | prediction
+----+----------+---------+------+-----------+---------+----------+------------
+  1 |    33590 |      12 |   11 |   5000000 |   12770 |   221100 |          1
+  2 |     1050 |      31 |   21 |  85000000 |  141210 |   120010 |         -1
+  3 |   233330 |      13 |   11 |  22500000 |  112060 |   351100 |          1
+  4 |   833370 |      12 |   12 |   9000000 |  130120 |  1751100 |         -1
+  5 |   132330 |      31 |   12 | 133000000 |  150120 | 30011100 |         -1
+  6 |   135330 |      21 |   11 |  90500000 | 8212120 | 25711100 |         -1
+  7 |   279330 |      31 | 21.5 | 260000000 |  213012 | 25011100 |         -1
+  8 |  6803333 |      12 |   11 | 142500000 |  117012 | 22111000 |         -1
+  9 | 33331840 |      31 |   12 | 160000000 |  150120 | 19011100 |         -1
+ 10 |     3780 |       4 |    2 |    220000 |    2790 |    21000 |          1
+ 11 |     1760 |       3 |    1 |     77000 |    1030 |    18500 |         -1
+ 12 |     1520 |       3 |    2 |    128600 |    1250 |    21000 |          1
+ 13 |     3000 |       3 |    2 |    130000 |    1760 |    37000 |          1
+ 14 |     2170 |       2 |    3 |    138000 |    1550 |    13000 |          1
+ 15 |      750 |       3 |  1.5 |     75000 |    1450 |    13000 |         -1
 </pre>
 Note the result may vary somewhat with the platform configuration you are using.
 
@@ -1107,6 +1166,21 @@ m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `NO SQL', `');
 CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_classification ()
 RETURNS TEXT AS $$
   SELECT MADLIB_SCHEMA.svm_classification(NULL::TEXT)
+$$ LANGUAGE SQL IMMUTABLE
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL', `');
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_one_class (
+    message  TEXT
+) RETURNS TEXT AS $$
+    global is_svc
+    is_svc = True
+    PythonFunction(svm, svm, svm_one_class_help)
+$$ LANGUAGE plpythonu
+m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `NO SQL', `');
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.svm_one_class ()
+RETURNS TEXT AS $$
+  SELECT MADLIB_SCHEMA.svm_one_class(NULL::TEXT)
 $$ LANGUAGE SQL IMMUTABLE
 m4_ifdef(`__HAS_FUNCTION_PROPERTIES__', `CONTAINS SQL', `');
 
