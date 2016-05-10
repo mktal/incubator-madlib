@@ -716,14 +716,18 @@ def svm_one_class(schema_madlib, source_table, model_table,
             source_table = tt['source_table']
             independent_varname = tt['independent_varname']
 
-        n_features = num_features(source_table, independent_varname)
+        # minus 1 since svm kernel always fit intercept
+        n_features = num_features(source_table, independent_varname) - 1
         sql = ("""
             CREATE TEMP TABLE {source_temp_table} AS
             (SELECT *, 1.0 as {dependent_varname} FROM {source_table});
 
             INSERT INTO {source_temp_table} ({independent_varname}, {dependent_varname})
-            (SELECT array_fill(0.0, array[{n_features}])
-             AS {independent_varname},
+            (SELECT
+                array_append(
+                    array_fill(0.0, array[{n_features}])::float[],
+                    1.0::float
+                ) AS {independent_varname},
              -1.0 AS {dependent_varname});
 
              DROP TABLE IF EXISTS {source_table};
