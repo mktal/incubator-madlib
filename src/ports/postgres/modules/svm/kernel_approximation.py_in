@@ -273,26 +273,29 @@ class PolyKernel(object):
 
         # X = a * cos (X*C + b)
         pro, multiplier = self.pro, sqrt(1. / self.n_components)
+        # append 1 to always fit intercept
         run_sql = """
         drop table if exists {transformed};
         create temp table {transformed} as
             select
-                {schema_madlib}.array_scalar_mult(
-                    array_cat(
-                        {schema_madlib}.array_mult(
-                            {schema_madlib}.__row_fold(
-                                {schema_madlib}.__matrix_vec_mult_in_mem(
-                                    q.{features_col}::float[],
-                                    weights.{pro.rd_val}::float[]
+                array_append(
+                    {schema_madlib}.array_scalar_mult(
+                        array_cat(
+                            {schema_madlib}.array_mult(
+                                {schema_madlib}.__row_fold(
+                                    {schema_madlib}.__matrix_vec_mult_in_mem(
+                                        q.{features_col}::float[],
+                                        weights.{pro.rd_val}::float[]
+                                    )::float[],
+                                    reps.{pro.rd_val}::integer[]
                                 )::float[],
-                                reps.{pro.rd_val}::integer[]
+                                coefs.{pro.rd_val}::float[]
                             )::float[],
-                            coefs.{pro.rd_val}::float[]
+                            of.{pro.rd_val}::float[]
                         )::float[],
-                        of.{pro.rd_val}::float[]
+                        {multiplier}::float
                     )::float[],
-                    {multiplier}::float
-                ) as {features_col},
+                    1.0::float) as {features_col},
                 q.{target_col} as {target_col},
                 {id_col},
                 {grouping_col}
@@ -580,10 +583,13 @@ class GaussianKernel(GaussianKernelBase):
             create temp table {transformed} as
                 select
                     {index_col},
-                    {schema_madlib}.array_scalar_mult(
-                        {schema_madlib}.array_cos(
-                            q.{independent_varname}::float[])::float[],
-                        {multiplier}::float) as {independent_varname},
+                    array_append(
+                        {schema_madlib}.array_scalar_mult(
+                            {schema_madlib}.array_cos(
+                                q.{independent_varname}::float[])::float[],
+                            {multiplier}::float
+                        )::float[],
+                        1.0::float) as {independent_varname},
                     {dependent_varname},
                     {id_col},
                     {grouping_col}
@@ -670,17 +676,20 @@ class GaussianKernelInMemory(GaussianKernelBase):
             drop table if exists {transformed};
             create temp table {transformed} as
                 select
-                    {schema_madlib}.array_scalar_mult(
-                        {schema_madlib}.array_cos(
-                            {schema_madlib}.array_add(
-                                {schema_madlib}.__matrix_vec_mult_in_mem(
-                                    q.{features_col}::float[],
-                                    rw.{self.rd_val}::float[]
-                                )::float[],
-                                ro.{self.rd_val}::float[]
-                            )::float[]
+                    array_append(
+                        {schema_madlib}.array_scalar_mult(
+                            {schema_madlib}.array_cos(
+                                {schema_madlib}.array_add(
+                                    {schema_madlib}.__matrix_vec_mult_in_mem(
+                                        q.{features_col}::float[],
+                                        rw.{self.rd_val}::float[]
+                                    )::float[],
+                                    ro.{self.rd_val}::float[]
+                                )::float[]
+                            )::float[],
+                            {multiplier}::float
                         )::float[],
-                        {multiplier}::float
+                        1.0::float
                     ) as {features_col},
                     q.{target_col} as {target_col},
                     {id_col},
