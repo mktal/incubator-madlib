@@ -90,6 +90,8 @@ LinearSVM<Model, Tuple>::gradientInPlace(
     if (is_svc) {
         if (1. - wx * y > 0.) {
             double c = -y;   // minus for "-loglik"
+            if (y == -1)
+                c *= 100;
             model -= stepsize * c * x;
         }
     }
